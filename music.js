@@ -89,5 +89,12 @@ globalThis.IntervalleMusic = (() => {
     const accidental=root+i.semitones+12*octaves-(12*octave+naturals[letter]);
     return letters[letter]+(accidental>0?'♯'.repeat(accidental):'♭'.repeat(-accidental))+subscript(octave-1);
   }
-  return {intervals,frequency,transpose,timbres,noteName,intervalNoteName,relationship,systems,tunedInterval,beatDisplay,beatPhaseModel,lissajousPoint,extendInterval};
+  function keyboardPitch(semitones,system='just'){
+    const octaves=semitones===0?0:Math.floor((semitones-1)/12);
+    const degree=semitones-12*octaves;
+    const base=intervals.find(i=>i.semitones===degree);
+    const cents=12*100*octaves+(system==='just'?base.pure:tunedInterval(base,system).equal);
+    return {base,octaves,cents};
+  }
+  return {intervals,frequency,transpose,timbres,noteName,intervalNoteName,relationship,systems,tunedInterval,beatDisplay,beatPhaseModel,lissajousPoint,extendInterval,keyboardPitch};
 })();
