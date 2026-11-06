@@ -306,6 +306,12 @@
   }
   function pianoDown(source,semi,velocity=1,channel=null){
     if(state.mode!=='free'||heldNotes.has(source))return;
+    // On-screen/typing latches toggle off by pitch, even with a new touch identifier.
+    // Physical MIDI keeps normal pedal/retrigger behavior.
+    if(!source.startsWith('midi:')&&state.pianoHold&&[...sustainedNotes.values()].some(note=>note.semi===semi)&&![...heldNotes.values()].some(note=>note.semi===semi)){
+      for(const [key,note] of sustainedNotes)if(note.semi===semi)sustainedNotes.delete(key);
+      updateAudio();renderPianoState();renderTransport();return;
+    }
     seriesEngaged=false;pianoAttacks.set(semi,(pianoAttacks.get(semi)||0)+1);
     pianoEngaged=true;heldNotes.set(source,{semi,velocity,channel});sustainedNotes.delete(source+':'+semi);
     selectPianoPitch(semi);

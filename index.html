@@ -5,10 +5,10 @@
   <meta name="theme-color" content="#1c1c1e">
   <meta name="description" content="Un atelier d’écoute pour explorer les intervalles purs et tempérés, sur un bourdon de votre choix.">
   <title>Intervalles et accordages/Tempéraments — ASMM</title>
-  <link rel="icon" href="asmm-icon.svg?v=piano-midi-3" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=piano-midi-3">
-  <link rel="stylesheet" href="style.css?v=piano-midi-3">
-  <script src="music.js?v=piano-midi-3" defer></script><script src="app.js?v=piano-midi-3" defer></script>
+  <link rel="icon" href="asmm-icon.svg?v=piano-midi-4" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=piano-midi-4">
+  <link rel="stylesheet" href="style.css?v=piano-midi-4">
+  <script src="music.js?v=piano-midi-4" defer></script><script src="app.js?v=piano-midi-4" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -105,7 +105,7 @@
               <label class="piano-pan" id="pianoPanLabel">Déplacer le clavier<input type="range" id="pianoPan" min="0" max="100" value="0" aria-label="Déplacer le clavier horizontalement"></label><p class="piano-touch-hint">Posez plusieurs doigts pour jouer un accord. Glissez pour changer de note. En mode agrandi, tournez le téléphone pour avoir plus de touches.</p>
               <p id="pianoStatus" class="piano-status" role="status">Cliquez sur les touches ou utilisez les lettres indiquées.</p>
               <p class="piano-help">Plusieurs touches à la fois = un accord. Sur écran tactile, utilisez plusieurs doigts. Échap arrête tout. Le piano utilise le volume et la sourdine de la deuxième note.</p>
-              <p class="piano-help">Les accordages sont calculés depuis la note de départ, même sans bourdon audible. Maintenir les notes agit comme une pédale : relâchez cette option pour les arrêter, ou utilisez « Tout relâcher ».</p>
+              <p class="piano-help">Les accordages sont calculés depuis la note de départ, même sans bourdon audible. Avec « Maintenir les notes », recliquez sur une touche allumée pour arrêter cette note. Relâchez cette option ou utilisez « Tout relâcher » pour libérer l’accord.</p>
               <p id="pianoSoundStatus" class="piano-help" role="status">Sons continus pour les battements ; piano acoustique en option pour un jeu plus naturel.</p><p class="piano-help">Piano acoustique : <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener noreferrer">Salamander Grand Piano · Alexander Holm</a>, <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer">CC BY 3.0</a>. Échantillons MP3 distribués par Tone.js, transposés à la lecture.</p><p id="pianoGraphHint" class="piano-help"></p>
               <div class="midi-panel"><div class="midi-heading"><strong>Clavier MIDI</strong><button id="midiConnect" class="piano-release">Connecter un clavier MIDI</button></div><label for="midiInput">Entrée MIDI</label><select id="midiInput" disabled><option value="">Aucun clavier connecté</option></select><p id="midiStatus" role="status">Branchez votre clavier en USB ou via une interface MIDI, puis connectez-le ici.</p><p class="piano-help">Le clavier joue les sons de l’application dans l’accordage choisi. Notes réelles du clavier, vélocité et pédale de sustain (CC64). Les boutons d’octave ci-dessus concernent le piano à l’écran et les lettres.</p></div>
             </section>

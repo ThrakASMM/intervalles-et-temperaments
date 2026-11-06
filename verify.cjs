@@ -235,6 +235,11 @@ const el=id=>els.get(id);
   const fingerG=ctx.osc.at(-1);assert(fingerC.stopped&&!fingerE.stopped&&!fingerG.stopped);
   await touchC.emit('pointerup',undefined,{pointerId:101});assert(fingerG.stopped&&!fingerE.stopped);
   await touchE.emit('pointercancel',undefined,{pointerId:102});assert(fingerE.stopped);
+  el('pianoHold').checked=true;await el('pianoHold').emit('change');
+  await touchC.emit('pointerdown',undefined,{pointerId:201});await touchC.emit('pointerup',undefined,{pointerId:201});const latchedC=ctx.osc.at(-1);
+  await touchE.emit('pointerdown',undefined,{pointerId:202});await touchE.emit('pointerup',undefined,{pointerId:202});const latchedE=ctx.osc.at(-1);
+  await touchC.emit('pointerdown',undefined,{pointerId:203});await touchC.emit('pointerup',undefined,{pointerId:203});assert(latchedC.stopped&&!latchedE.stopped,'A new finger ID toggles only the chosen latched pitch');
+  el('pianoHold').checked=false;await el('pianoHold').emit('change');
   await el('pianoExpand').emit('click');assert.equal(el('pianoExpand').attributes['aria-pressed'],'true');keyEvent('keydown','Escape','Escape');assert.equal(el('pianoExpand').attributes['aria-pressed'],'false');
 
   // Sample playback: real buffer sources, pitch mapping, held release and retrigger.
@@ -244,7 +249,7 @@ const el=id=>els.get(id);
   assert(sample1.buffer);near(sample1.playbackRate.value,1);assert(!sample1.stopped);
   await el('pianoOctaveUp').emit('click');assert(!sample1.stopped);
   keyEvent('keydown','q','KeyQ');keyEvent('keyup','q','KeyQ');const sample2=ctx.buffers.at(-1);assert(sample2!==sample1);
-  keyEvent('keydown','q','KeyQ');assert(sample2.stopped,'A repeated key creates a fresh sampled attack');keyEvent('keyup','q','KeyQ');
+  keyEvent('keydown','q','KeyQ');assert(sample2.stopped,'A repeated latched key toggles off');assert(!sample1.stopped,'Other octaves continue');keyEvent('keyup','q','KeyQ');keyEvent('keydown','q','KeyQ');keyEvent('keyup','q','KeyQ');assert(ctx.buffers.at(-1)!==sample2&&!ctx.buffers.at(-1).stopped,'A third press starts the note again');
   el('pianoHold').checked=false;await el('pianoHold').emit('change');assert(sample1.stopped&&ctx.buffers.at(-1).stopped);
   await el('pianoTimbre').emit('change','sine');
 

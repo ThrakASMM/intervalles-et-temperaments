@@ -19,7 +19,7 @@ Cliquer sur **Écouter** en haut. Choisir le bourdon et l’intervalle, ou ouvri
 - Trois vues scientifiques : **Enveloppe**, **Cercle de phase**, **Lissajous**.
 - Pulsation lumineuse des battements, temps réel ou ralenti visuel.
 
-Le piano démarre au premier appui. Les lettres affichées couvrent la première octave du clavier visible. **−1 octave / +1 octave** ou le sélecteur déplacent le piano indépendamment du bourdon, entre les octaves de départ 1 et 6. L’étendue visible suit celle de la frise. Les notes maintenues restent audibles entre octaves et lors des changements de focus. Relâcher « Maintenir les notes » coupe les notes relâchées, en tenant compte d’une éventuelle pédale MIDI. Échap arrête tout, et « Tout relâcher » libère les notes maintenues.
+Le piano démarre au premier appui. Les lettres affichées couvrent la première octave du clavier visible. **−1 octave / +1 octave** ou le sélecteur déplacent le piano indépendamment du bourdon, entre les octaves de départ 1 et 6. L’étendue visible suit celle de la frise. Les notes maintenues restent audibles entre octaves et lors des changements de focus. Avec « Maintenir les notes », recliquer une touche allumée (ou retaper sa lettre) coupe cette note seule ; les autres continuent. Les touches MIDI conservent le comportement habituel d’une pédale. Relâcher « Maintenir les notes » coupe les notes relâchées, en tenant compte d’une éventuelle pédale MIDI. Échap arrête tout, et « Tout relâcher » libère les notes maintenues.
 
 Les graphiques suivent la dernière note située dans la frise, pas l’accord complet. Une note plus grave ou plus aiguë reste jouable ; un message indique alors que les graphiques gardent la dernière note de la frise.
 
