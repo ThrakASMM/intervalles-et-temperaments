@@ -150,6 +150,35 @@ const el=id=>els.get(id);
   for(const system of ['just',...Object.keys(M.systems)])for(let semi=0;semi<=36;semi++){
     const p=M.keyboardPitch(semi,system);assert(p.cents>=0&&p.cents<=3600);near(p.base.semitones+12*p.octaves,semi);
   }
+
+  // Harmonic series: exact integer multiples and independent, click-free gains.
+  near(M.harmonic(69,7).frequency,3080);near(M.harmonic(69,7).offset,-31.17409353087553);
+  near(M.harmonic(48,11).offset,-48.68205763524301);
+  await el('harmonicsPlay').emit('click');await new Promise(resolve=>setImmediate(resolve));
+  const seriesOsc=ctx.osc.slice(-16),seriesGains=ctx.gains.slice(-16);
+  near(seriesGains[0].gain.value,.35);
+  for(const gain of seriesGains.slice(1))near(gain.gain.value,0);
+  for(const gain of ctx.gains.slice(1,4))near(gain.gain.value,0);
+  await el('harmonicsGrid').children[6].emit('click');
+  near(seriesOsc[6].frequency.value,7*ctx.osc[0].frequency.value);
+  near(seriesGains[6].gain.value,.35);near(seriesGains[0].gain.value,0);
+  await el('harmonicsTempered').emit('click');
+  near(seriesOsc[6].frequency.value,ctx.osc[0].frequency.value*2**(34/12));
+  near(seriesGains[6].gain.value,.35);
+  assert.equal(el('harmonicsGrid').children[6].attributes['aria-pressed'],'true');
+  await el('harmonicsNatural').emit('click');near(seriesOsc[6].frequency.value,7*ctx.osc[0].frequency.value);
+  await el('harmonicsSum').emit('click');await el('harmonicsGrid').children[2].emit('click');
+  near(seriesGains[2].gain.value/seriesGains[6].gain.value,7/3);
+  near(seriesGains.reduce((sum,g)=>sum+g.gain.value,0),.35);
+  await el('harmonicsProfile').emit('change','equal');near(seriesGains[2].gain.value,seriesGains[6].gain.value);
+  await el('harmonicsOdd').emit('click');
+  seriesGains.forEach((g,index)=>assert.equal(g.gain.value>0,index%2===0));
+  await el('harmonicsRoot').emit('change','9');near(seriesOsc[0].frequency.value,220);near(seriesOsc[15].frequency.value,3520);
+  await el('harmonicsPlay').emit('click');seriesGains.forEach(g=>near(g.gain.value,0));
+  await el('intervalMode').emit('click');await el('play').emit('click');
+  assert(ctx.gains[1].gain.value>0);seriesGains.forEach(g=>near(g.gain.value,0));
+  await el('play').emit('click');
+  console.log('PASS — série H1 à H16 : fréquences, cents, solo, addition, amplitudes, impaires, fondamentale, arrêt et retour aux intervalles.');
   console.log('PASS — piano polyphonique, sans/avec bourdon, sustain, accordages, relâchement, clavier et touch.');
   console.log('PASS — accordages, audio/mute, frise, zoom, phase/enveloppe : maxima, opposition, animation, pause et fréquence commune.');
 })().catch(error=>{console.error(error);process.exitCode=1});

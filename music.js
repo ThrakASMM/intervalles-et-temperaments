@@ -96,5 +96,9 @@ globalThis.IntervalleMusic = (() => {
     const cents=12*100*octaves+(system==='just'?base.pure:tunedInterval(base,system).equal);
     return {base,octaves,cents};
   }
-  return {intervals,frequency,transpose,timbres,noteName,intervalNoteName,relationship,systems,tunedInterval,beatDisplay,beatPhaseModel,lissajousPoint,extendInterval,keyboardPitch};
+  function harmonic(root,n,reference=440){
+    const cents=1200*Math.log2(n),semitones=Math.round(cents/100);
+    return {n,frequency:frequency(root,reference)*n,equalFrequency:frequency(root+semitones,reference),semitones,cents,note:noteName(root+semitones),offset:cents-semitones*100};
+  }
+  return {intervals,frequency,transpose,timbres,noteName,intervalNoteName,relationship,systems,tunedInterval,beatDisplay,beatPhaseModel,lissajousPoint,extendInterval,keyboardPitch,harmonic};
 })();

@@ -6,8 +6,8 @@
   <meta name="description" content="Un atelier d’écoute pour explorer les intervalles purs et tempérés, sur un bourdon de votre choix.">
   <title>Intervalles et accordages/Tempéraments — ASMM</title>
   <link rel="icon" href="asmm-logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css?v=piano-direct-2">
-  <script src="music.js?v=piano-direct-2" defer></script><script src="app.js?v=piano-direct-2" defer></script>
+  <link rel="stylesheet" href="style.css?v=harmonics-1">
+  <script src="music.js?v=harmonics-1" defer></script><script src="app.js?v=harmonics-1" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -17,7 +17,7 @@
     </header>
 
     <main>
-      <nav class="quick-access" aria-label="Accès direct"><a id="openPiano" href="#piano" class="piano-shortcut"><span aria-hidden="true">♬</span> Ouvrir le piano <span aria-hidden="true">↓</span></a><span>Notes et accords · avec ou sans bourdon</span></nav>
+      <nav class="quick-access" aria-label="Accès direct"><a id="openPiano" href="#piano" class="piano-shortcut"><span aria-hidden="true">♬</span> Ouvrir le piano <span aria-hidden="true">↓</span></a><a id="openHarmonics" href="#harmoniques" class="harmonics-shortcut">Série harmonique <span aria-hidden="true">↓</span></a></nav>
       <div class="transport"><div class="transport-main"><button id="play" class="play-button" aria-pressed="false"><span id="playIcon" aria-hidden="true">▶</span><span id="playLabel">Écouter</span></button><div class="play-status"><span id="statusDot"></span><span id="statusText" role="status">Prêt à écouter</span></div></div><div class="master-volume"><label for="masterVolume">Volume général</label><input type="range" id="masterVolume" min="0" max="100" value="55"><output id="masterVolumeText" for="masterVolume">55 %</output></div></div>
       <p id="audioError" role="alert" hidden></p>
       <section class="system-bar" aria-label="Accordage de référence"><label for="tuningSystem">Accordage / tempérament<select id="tuningSystem"><option value="equal">Tempérament égal · 12 notes</option><option value="pythagorean">Accord pythagoricien</option><option value="meantone">Mésotonique · ¼ de comma</option></select></label><div><p id="systemDescription"></p><small>Les intervalles sont calculés depuis le bourdon. Pour les systèmes historiques, les notes enharmoniques ne sont pas interchangeables : le triton choisi ici est une quarte augmentée. Le clavier suit ces repères relatifs au bourdon ; il ne simule pas toutes les enharmonies d’un instrument historique ni sa quinte du loup.</small></div></section>
@@ -106,6 +106,19 @@
               <p class="piano-help">Les accordages sont calculés depuis la note de départ, même sans bourdon audible. Les graphiques comparent le bourdon à la dernière note jouée ; ils ne représentent pas l’accord complet.</p>
             </section>
           </section>
+
+      <section id="harmoniques" class="harmonics-panel" aria-labelledby="harmonicsTitle">
+        <div class="harmonics-heading"><div><p class="eyebrow">DU SON SIMPLE AU TIMBRE</p><h2 id="harmonicsTitle" tabindex="-1">La série harmonique</h2><p>Écoutez les multiples d’une fondamentale, puis assemblez-les.</p></div><button id="harmonicsPlay" class="harmonics-play" aria-pressed="false">▶ Écouter la série</button></div>
+        <div class="harmonics-controls"><label>Fondamentale<select id="harmonicsRoot"></select></label><label>Octave<select id="harmonicsOctave"></select></label><label>Amplitudes relatives<select id="harmonicsProfile"><option value="falling">Décroissantes · 1/n</option><option value="equal">Égales</option></select></label><div class="harmonics-base"><strong id="harmonicsBase"></strong><span id="harmonicsFormula">fₙ = n × f₁</span></div></div>
+        <div class="harmonics-comparison"><span>Accordage entendu</span><div role="group" aria-label="Comparer la série au tempérament égal"><button id="harmonicsNatural" aria-pressed="true">Série naturelle</button><button id="harmonicsTempered" aria-pressed="false">Tempérament égal</button></div><p id="harmonicsComparisonHint">Sélectionnez H5 ou H7, puis alternez les deux accordages.</p></div>
+        <details class="harmonics-reference" open><summary>Le schéma vu en cours</summary><div class="harmonics-reference-scroll"><img src="harmonics-reference.webp" alt="Les seize premières harmoniques sur une double portée en do. Les flèches indiquent l’écart à la note tempérée : H3 environ +2 cents, H5 −14, H7 −31, H11 −49, H13 +41."></div><p>↑ : l’harmonique naturelle est plus haute que la note tempérée. ↓ : elle est plus basse. Ce schéma est en do ; les notes ci-dessous suivent la fondamentale choisie.</p></details>
+        <div class="harmonics-modes" role="group" aria-label="Écoute des harmoniques"><button id="harmonicsSolo" aria-pressed="true">Une à la fois</button><button id="harmonicsSum" aria-pressed="false">Les additionner</button></div>
+        <p id="harmonicsInstruction" class="harmonics-instruction">Cliquez sur une harmonique pour l’écouter seule.</p>
+        <div id="harmonicsGrid" class="harmonics-grid" role="group" aria-label="Les seize premières harmoniques"></div>
+        <div class="harmonics-presets"><button id="harmonicsFirst">Fondamentale seule</button><button id="harmonicsEight">H1 à H8</button><button id="harmonicsOdd">Harmoniques impaires</button><button id="harmonicsAll">H1 à H16</button></div>
+        <p id="harmonicsStatus" class="harmonics-status" role="status"></p>
+        <details class="harmonics-lesson"><summary>À faire écouter en cours</summary><ol><li>En mode « Une à la fois », écoutez H1, H2, H3, H4 : fondamentale, octave, quinte au-dessus de cette octave, puis deux octaves.</li><li>Écoutez H5, H7 ou H11 et alternez « Série naturelle » / « Tempérament égal ». Les flèches et les cents correspondent à ceux du schéma.</li><li>Passez à « Les additionner » et activez H2, H3, H4… Le mélange construit un timbre à partir de sinusoïdes.</li><li>Comparez H1 à H8 et les harmoniques impaires. Les fréquences présentes et leurs amplitudes changent la couleur du son.</li></ol><p>Une harmonique a une fréquence entière multiple de la fondamentale : H5 = 5 × f₁. H1 est la fondamentale. Le nom de note affiché est le repère tempéré le plus proche ; l’écart en cents indique la différence avec ce repère. H7 et H11, par exemple, ne tombent pas exactement sur les touches tempérées.</p><p>En mode tempéré, chaque harmonique est remplacée par la note tempérée la plus proche : le mélange n’est plus nécessairement une série de multiples entiers. Les choix de notes et d’amplitudes sont conservés pour comparer. Écart au repère tempéré : Δc = 1 200 × log₂(n) − 100 × k, où k est le nombre entier de demi-tons du repère le plus proche.</p><p>Les barres montrent les amplitudes relatives. Le niveau de la somme est compensé pour garder une marge de volume ; la perception de la force sonore peut varier. Cette écoute remplace temporairement le bourdon et le piano. Les graphiques d’intervalles au-dessus ne représentent pas la série.</p></details>
+      </section>
 
       <details id="advancedVoices" class="advanced-voices"><summary>Options avancées</summary><div class="third-add-row"><button id="addThird" class="add-third">＋ Ajouter une troisième note</button><span>Pour explorer aussi les accords.</span></div></details>
       <section id="thirdPanel" class="third-panel" aria-label="Troisième note" hidden>

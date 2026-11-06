@@ -11,6 +11,7 @@ Cliquer sur **Écouter** en haut. Choisir le bourdon et l’intervalle, ou ouvri
 - Repères justes, égaux, pythagoriciens et mésotoniques.
 - Piano polyphonique sous la frise : souris, multitouch, clavier AZERTY ou QWERTY, de une à trois octaves.
 - Piano avec ou sans bourdon, maintien des notes, accordages juste, égal, pythagoricien et mésotonique.
+- Série harmonique H1 à H16 : sinusoïdes seules ou additionnées, amplitudes égales ou décroissantes, fréquences exactes et écarts aux notes tempérées. Schéma fourni pour le cours et comparaison immédiate naturelle / tempérée, à sélection et amplitudes identiques. Accès direct : https://thrakasmm.github.io/intervalles-et-temperaments/#harmoniques.
 - Quatre timbres synthétiques, volume et sourdine pour chaque voix.
 - Deux voix par défaut, troisième note dans Options avancées.
 - Formules, cents et rapports de fréquences.
