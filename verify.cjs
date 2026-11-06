@@ -6,28 +6,34 @@ const root=__dirname;
 const near=(actual,expected)=>assert(Math.abs(actual-expected)<1e-8,`${actual} != ${expected}`);
 const els=new Map();let frame;
 function element(){
-  return {value:'',textContent:'',hidden:false,attributes:{},dataset:{},children:[],listeners:{},parentElement:{hidden:false},
+  return {value:'',textContent:'',hidden:false,attributes:{},dataset:{},children:[],listeners:{},parentElement:{hidden:false,addEventListener(){}},
     classList:{toggle(){}},style:{setProperty(k,v){this[k]=v}},clientWidth:600,clientHeight:160,
     setAttribute(k,v){this.attributes[k]=v},append(...nodes){this.children.push(...nodes)},replaceChildren(){this.children=[]},cloneNode(){return element()},
     addEventListener(k,fn){this.listeners[k]=fn},focus(){},blur(){},getContext(){return new Proxy({},{get:(o,k)=>o[k]||(()=>{})})},
-    setPointerCapture(){},
+    setPointerCapture(){},hasPointerCapture(){return true},
     async emit(k,value,details={}){if(value!==undefined)this.value=String(value);return this.listeners[k]?.({target:this,shiftKey:false,button:0,pointerId:1,detail:1,preventDefault(){},...details});}};
 }
 for(const match of fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/id="([^"]+)"/g))els.set(match[1],element());
 const audio=[];
 class Param{constructor(){this.value=0}cancelScheduledValues(){}setTargetAtTime(v){this.value=v}}
-class Node{constructor(type){this.type=type;this.frequency=new Param();this.gain=new Param()}connect(){}start(){}stop(){this.stopped=true}disconnect(){}setPeriodicWave(w){this.wave=w}}
+class Node{constructor(type){this.type=type;this.frequency=new Param();this.playbackRate=new Param();this.gain=new Param()}connect(){}start(){}stop(){this.stopped=true}disconnect(){}setPeriodicWave(w){this.wave=w}}
 class Context{
-  constructor(){this.state='running';this.currentTime=0;this.sampleRate=48000;this.destination={};this.osc=[];this.gains=[];audio.push(this)}
+  constructor(){this.state='running';this.currentTime=0;this.sampleRate=48000;this.destination={};this.osc=[];this.gains=[];this.buffers=[];audio.push(this)}
   createOscillator(){const n=new Node('osc');this.osc.push(n);return n}
+  createBufferSource(){const n=new Node('buffer');this.buffers.push(n);return n}
+  async decodeAudioData(){return {duration:12}}
   createGain(){const n=new Node('gain');this.gains.push(n);return n}
   createAnalyser(){return {fftSize:2048,connect(){}}}
   createPeriodicWave(real,imag){return [...imag]}
   addEventListener(){}async resume(){this.state='running'}async suspend(){this.state='suspended'}
 }
 const documentEvents={},windowEvents={};
-const box={location:{hash:''},console,Float32Array,AudioContext:Context,devicePixelRatio:1,
-  document:{getElementById:id=>{assert(els.has(id),'Missing DOM id: '+id);return els.get(id)},createElement:element,body:element(),activeElement:null,addEventListener(type,fn){documentEvents[type]=fn}},
+const midiA={id:'keyboard-a',name:'Clavier test A',state:'connected',async open(){},async close(){}};
+const midiB={id:'keyboard-b',name:'Clavier test B',state:'connected',async open(){},async close(){}};
+const midiAccess={inputs:new Map([['keyboard-a',midiA],['keyboard-b',midiB]])};
+let midiRequests=0,fetches=0;
+const box={async fetch(url){assert.match(url,/^piano-.*\.mp3$/);fetches++;return {ok:true,async arrayBuffer(){return new ArrayBuffer(16)}};},navigator:{async requestMIDIAccess(options){assert.equal(options.sysex,false);midiRequests++;return midiAccess;}},location:{hash:''},console,Float32Array,AudioContext:Context,devicePixelRatio:1,
+  document:{getElementById:id=>{assert(els.has(id),'Missing DOM id: '+id);return els.get(id)},createElement:element,createElementNS:element,body:element(),activeElement:null,addEventListener(type,fn){documentEvents[type]=fn}},
   localStorage:{getItem:()=>JSON.stringify({thirdAdded:true}),setItem(){}},
   ResizeObserver:class{observe(){}},matchMedia:()=>({matches:false}),requestAnimationFrame(fn){frame=fn},setInterval:()=>1,clearInterval(){},setTimeout,addEventListener(type,fn){windowEvents[type]=fn}};
 box.window=box;vm.createContext(box);
@@ -135,10 +141,10 @@ const el=id=>els.get(id);
   assert(pianoChord[0].stopped&&pianoChord[2].stopped,'Disabling sustain releases latched notes');
   const countBefore=ctx.osc.length;
   keyEvent('keydown','q','KeyQ',{target:{tagName:'INPUT'}});assert.equal(ctx.osc.length,countBefore,'Typing in fields never plays notes');
-  await el('freeOctaves').emit('change','3');await el('pianoOctave').emit('change','2');
+  await el('freeOctaves').emit('change','3');await el('pianoOctave').emit('change','5');
   keyEvent('keydown','k','KeyK');near(ctx.osc.at(-1).frequency.value/ctx.osc[0].frequency.value,8);
   windowEvents.blur();assert(ctx.osc.at(-1).stopped,'Losing focus cannot leave a held key sounding');
-  await el('freeOctaves').emit('change','1');assert.equal(Number(el('pianoOctave').value),0);
+  await el('freeOctaves').emit('change','1');assert.equal(Number(el('pianoOctave').value),5);await el('pianoOctave').emit('change','3');
   const touchKey=el('pianoKeys').children.find(b=>Number(b.dataset.semitone)===4);
   await touchKey.emit('pointerdown',undefined,{pointerId:7});assert(ctx.gains.at(-1).gain.value>0);
   await touchKey.emit('pointercancel',undefined,{pointerId:7});assert(ctx.osc.at(-1).stopped);
@@ -147,8 +153,8 @@ const el=id=>els.get(id);
   keyEvent('keydown','q','KeyQ');keyEvent('keydown','Escape','Escape');
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(el('playLabel').textContent,'Écouter','Escape cancels an audio start still awaiting resume');
-  for(const system of ['just',...Object.keys(M.systems)])for(let semi=0;semi<=36;semi++){
-    const p=M.keyboardPitch(semi,system);assert(p.cents>=0&&p.cents<=3600);near(p.base.semitones+12*p.octaves,semi);
+  for(const system of ['just',...Object.keys(M.systems)])for(let semi=-60;semi<=79;semi++){
+    const p=M.keyboardPitch(semi,system);assert(Number.isFinite(p.cents));assert(!M.intervalNoteName(48,p.base,p.octaves).includes('undefined'));near(p.base.semitones+12*p.octaves,semi);
   }
 
   // Harmonic series: exact integer multiples and independent, click-free gains.
@@ -178,6 +184,82 @@ const el=id=>els.get(id);
   await el('intervalMode').emit('click');await el('play').emit('click');
   assert(ctx.gains[1].gain.value>0);seriesGains.forEach(g=>near(g.gain.value,0));
   await el('play').emit('click');
+  // Independent octave and sustain: build a chord across registers without moving the drone.
+  await el('rootNote').emit('change','0');await el('freeMode').emit('click');await el('pianoOctave').emit('change','3');
+  await el('pianoSystem').emit('change','equal');
+  el('pianoHold').checked=true;await el('pianoHold').emit('change');
+  keyEvent('keydown','q','KeyQ');await new Promise(resolve=>setImmediate(resolve));keyEvent('keyup','q','KeyQ');
+  const heldLow=ctx.osc.at(-1),droneHz=ctx.osc[0].frequency.value;
+  await el('pianoOctaveUp').emit('click');assert.equal(Number(el('pianoOctave').value),4);assert(!heldLow.stopped);
+  keyEvent('keydown','q','KeyQ');keyEvent('keyup','q','KeyQ');const heldHigh=ctx.osc.at(-1);
+  near(heldHigh.frequency.value/heldLow.frequency.value,2);near(ctx.osc[0].frequency.value,droneHz);
+  windowEvents.blur();assert(!heldHigh.stopped&&!heldLow.stopped,'Changing focus preserves the sustain pedal');
+  el('pianoHold').checked=false;await el('pianoHold').emit('change');assert(heldHigh.stopped&&heldLow.stopped);
+  await el('pianoOctave').emit('change','1');keyEvent('keydown','d','KeyD');
+  near(ctx.osc.at(-1).frequency.value,M.frequency(28));assert.match(el('pianoStatus').textContent,/Mi₁/);
+  assert.match(el('pianoGraphHint').textContent,/hors de la frise/);keyEvent('keyup','d','KeyD');
+  await el('pianoOctave').emit('change','6');assert(el('pianoOctaveUp').disabled);await el('pianoOctave').emit('change','3');
+
+  // MIDI permission is opt-in; physical notes, velocities, independent channels and pedals.
+  assert.equal(midiRequests,0);await el('midiConnect').emit('click');assert.equal(midiRequests,1);
+  assert.match(el('midiStatus').textContent,/Clavier test A/);
+  const midi=(status,note,value)=>midiA.onmidimessage({data:[status,note,value]});
+  midi(0x90,60,64);midi(0x90,64,127);await new Promise(resolve=>setImmediate(resolve));
+  const midiC=ctx.osc.at(-2),midiE=ctx.osc.at(-1),midiCGain=ctx.gains.at(-2),midiEGain=ctx.gains.at(-1);
+  near(midiC.frequency.value,M.frequency(60));near(midiE.frequency.value,M.frequency(64));near(midiCGain.gain.value/midiEGain.gain.value,64/127);
+  midi(0x90,64,0);assert(midiE.stopped);assert(!midiC.stopped);
+  midi(0xb0,64,127);midi(0x80,60,0);assert(!midiC.stopped);
+  midi(0xb1,64,0);assert(!midiC.stopped,'Pedal release on another channel cannot cut the note');
+  el('pianoHold').checked=true;await el('pianoHold').emit('change');midi(0xb0,64,0);assert(!midiC.stopped);
+  el('pianoHold').checked=false;await el('pianoHold').emit('change');assert(midiC.stopped);
+  midi(0x90,60,100);midi(0x91,60,100);const shared=ctx.osc.at(-1);midi(0x80,60,0);assert(!shared.stopped);midi(0x81,60,0);assert(shared.stopped);
+  midi(0x90,36,127);near(ctx.osc.at(-1).frequency.value,M.frequency(36));
+  midi(0xb0,120,0);assert(ctx.osc.at(-1).stopped,'All Sound Off clears a channel');
+  midi(0x90,60,100);const disconnected=ctx.osc.at(-1);midiA.state='disconnected';midiAccess.onstatechange();assert(disconnected.stopped);assert.equal(midiA.onmidimessage,null);
+  midiA.state='connected';midiAccess.onstatechange();assert.equal(typeof midiA.onmidimessage,'function');
+  midi(0x90,60,100);const switched=ctx.osc.at(-1);await el('midiInput').emit('change','keyboard-b');assert(switched.stopped);assert.equal(midiA.onmidimessage,null);assert.equal(typeof midiB.onmidimessage,'function');
+  await el('midiConnect').emit('click');assert.equal(midiB.onmidimessage,null);
+  box.navigator.requestMIDIAccess=async()=>{throw Object.assign(new Error('blocked'),{name:'NotAllowedError'});};
+  await el('midiConnect').emit('click');assert.match(el('midiStatus').textContent,/refusé/);assert(!el('midiConnect').disabled);
+
+  // Independent fingers, glissando and cancellation on a touch keyboard.
+  await el('pianoOctave').emit('change','3');
+  const touchC=el('pianoKeys').children.find(b=>Number(b.dataset.semitone)===0),touchE=el('pianoKeys').children.find(b=>Number(b.dataset.semitone)===4),touchG=el('pianoKeys').children.find(b=>Number(b.dataset.semitone)===7);
+  await touchC.emit('pointerdown',undefined,{pointerId:101});await touchE.emit('pointerdown',undefined,{pointerId:102});
+  const fingerC=ctx.osc.at(-2),fingerE=ctx.osc.at(-1);assert(!fingerC.stopped&&!fingerE.stopped);
+  touchG.parentElement=el('pianoKeys');box.document.elementFromPoint=()=>({closest:()=>touchG});
+  await touchC.emit('pointermove',undefined,{pointerId:101,clientX:100,clientY:100});
+  const fingerG=ctx.osc.at(-1);assert(fingerC.stopped&&!fingerE.stopped&&!fingerG.stopped);
+  await touchC.emit('pointerup',undefined,{pointerId:101});assert(fingerG.stopped&&!fingerE.stopped);
+  await touchE.emit('pointercancel',undefined,{pointerId:102});assert(fingerE.stopped);
+  await el('pianoExpand').emit('click');assert.equal(el('pianoExpand').attributes['aria-pressed'],'true');keyEvent('keydown','Escape','Escape');assert.equal(el('pianoExpand').attributes['aria-pressed'],'false');
+
+  // Sample playback: real buffer sources, pitch mapping, held release and retrigger.
+  await el('pianoTimbre').emit('change','sampled');assert.equal(fetches,30);
+  el('pianoHold').checked=true;await el('pianoHold').emit('change');
+  keyEvent('keydown','q','KeyQ');await new Promise(resolve=>setImmediate(resolve));keyEvent('keyup','q','KeyQ');const sample1=ctx.buffers.at(-1);
+  assert(sample1.buffer);near(sample1.playbackRate.value,1);assert(!sample1.stopped);
+  await el('pianoOctaveUp').emit('click');assert(!sample1.stopped);
+  keyEvent('keydown','q','KeyQ');keyEvent('keyup','q','KeyQ');const sample2=ctx.buffers.at(-1);assert(sample2!==sample1);
+  keyEvent('keydown','q','KeyQ');assert(sample2.stopped,'A repeated key creates a fresh sampled attack');keyEvent('keyup','q','KeyQ');
+  el('pianoHold').checked=false;await el('pianoHold').emit('change');assert(sample1.stopped&&ctx.buffers.at(-1).stopped);
+  await el('pianoTimbre').emit('change','sine');
+
+  // Clickable score, natural fractions and cents recalculated for each tuning.
+  const scoreNote=n=>el('harmonicsScore').children.find(g=>g.attributes['data-harmonic']===n);
+  await el('harmonicsSolo').emit('click');await scoreNote(7).emit('click');assert.match(el('harmonicsStatus').textContent,/H7/);
+  for(const [tuning,expected] of [['natural',-31.17409353087553],['equal',0],['just',17.59628786593987],['pythagorean',-3.910001730774837],['meantone',6.843143067582787]]){
+    await el('harmonicsTuning').emit('change',tuning);
+    const ratio=seriesOsc[6].frequency.value/M.frequency(48);
+    near(1200*Math.log2(ratio)-3400,expected);
+    const text=scoreNote(7).children.find(c=>c.attributes.class==='score-cents').textContent;
+    assert(tuning==='equal'?text==='0 ct':text.includes(expected>0?'↑':'↓'));
+  }
+  assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-fraction').textContent,'5/1');
+  assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-reduced').textContent,'5/4');
+  await el('harmonicsPlay').emit('click');
+  console.log('PASS — octave indépendante, sustain entre octaves/focus, MIDI (notes, vélocité, pédales, canaux, connexion/refus), piano enregistré et portée interactive.');
+
   console.log('PASS — série H1 à H16 : fréquences, cents, solo, addition, amplitudes, impaires, fondamentale, arrêt et retour aux intervalles.');
   console.log('PASS — piano polyphonique, sans/avec bourdon, sustain, accordages, relâchement, clavier et touch.');
   console.log('PASS — accordages, audio/mute, frise, zoom, phase/enveloppe : maxima, opposition, animation, pause et fréquence commune.');

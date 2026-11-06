@@ -85,7 +85,7 @@ globalThis.IntervalleMusic = (() => {
     const rootLetter=[0,0,1,2,2,3,3,4,5,5,6,6][((root%12)+12)%12];
     const steps={unison:0,m2:1,M2:1,m3:2,M3:2,P4:3,TT:3,P5:4,m6:5,M6:5,m7:6,h7:6,M7:6,P8:7};
     const degree=rootLetter+steps[i.id]+7*octaves;
-    const octave=Math.floor(root/12)+Math.floor(degree/7),letter=degree%7;
+    const octave=Math.floor(root/12)+Math.floor(degree/7),letter=((degree%7)+7)%7;
     const accidental=root+i.semitones+12*octaves-(12*octave+naturals[letter]);
     return letters[letter]+(accidental>0?'♯'.repeat(accidental):'♭'.repeat(-accidental))+subscript(octave-1);
   }
