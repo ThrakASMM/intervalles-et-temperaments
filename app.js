@@ -3,7 +3,7 @@
   const M=globalThis.IntervalleMusic, $=id=>document.getElementById(id);
   const format=(n,d=2)=>n.toLocaleString('fr-FR',{minimumFractionDigits:d,maximumFractionDigits:d});
   const defaults={mode:'interval',octaveSpan:1,refOctave:0,showJust:true,showEqual:true,showPyth:false,showMeantone:false,scienceView:'envelope',visualVersion:2,waveMode:'cycles',waveCycles:8,beatSpeed:'auto',system:'equal',root:0,octave:3,interval:'M3',cents:400,reference:440,droneTimbre:'organ',upperTimbre:'organ',droneVolume:65,upperVolume:65,masterVolume:55,droneEnabled:true,upperEnabled:true,zoom:'fine',thirdAdded:false,thirdEnabled:true,thirdInterval:'P5',thirdCents:700,thirdTimbre:'organ',thirdVolume:55};
-  Object.assign(defaults,{pianoSound:'synth',pianoSystem:'just',pianoLayout:'azerty',pianoOctave:3,pianoVersion:2,pianoDrone:false,pianoHold:false});
+  Object.assign(defaults,{pianoSound:'synth',pianoSynth:'organ',pianoVolume:65,pianoAccompaniment:'solo',extraSystem:'',pianoSystem:'just',pianoLayout:'azerty',pianoOctave:3,pianoVersion:2,pianoDrone:false,pianoHold:false});
   let state={...defaults};
   try {
     const saved=JSON.parse(localStorage.getItem('intervalle.v1')||'null');
@@ -14,6 +14,8 @@
       }
       if(saved.pianoVersion!==2)state.pianoOctave=Math.max(1,Math.min(6,state.octave+(saved.pianoOctave||0)));
       state.pianoVersion=2;
+      if(!saved.pianoAccompaniment)state.pianoAccompaniment=saved.pianoDrone?'drone':'solo';
+      if(!saved.pianoSynth)state.pianoSynth=saved.upperTimbre||'organ';
       if(saved.visualVersion!==2)state.waveMode='cycles';
       state.visualVersion=2;
     }
@@ -23,7 +25,11 @@
   state.pianoHold=false;
   // Always open with a sustained tone; recorded piano is an explicit session option.
   state.pianoSound='synth';
-  if(!['just','equal','pythagorean','meantone'].includes(state.pianoSystem))state.pianoSystem='just';
+  if(!Object.hasOwn(M.systems,state.pianoSystem))state.pianoSystem='just';
+  if(!Object.hasOwn(M.timbres,state.pianoSynth))state.pianoSynth='organ';
+  if(!Number.isFinite(state.pianoVolume)||state.pianoVolume<0||state.pianoVolume>100)state.pianoVolume=65;
+  if(!['solo','drone','module'].includes(state.pianoAccompaniment))state.pianoAccompaniment='solo';
+  if(!Object.hasOwn(M.systems,state.extraSystem))state.extraSystem='';
   if(!['azerty','qwerty'].includes(state.pianoLayout))state.pianoLayout='azerty';
   if(!Object.hasOwn(M.systems,state.system))state.system='equal';
   const limits={root:[0,11],octave:[2,5],cents:[0,3600],octaveSpan:[1,3],refOctave:[0,2],reference:[400,480],droneVolume:[0,100],upperVolume:[0,100],masterVolume:[0,100],thirdVolume:[0,100],thirdCents:[0,1200]};
@@ -46,10 +52,11 @@
   state.cents=Math.min(state.cents,maxCents());
   let timelineKey='',timelineMarkers=[];
   let playing=false,starting=false,compareTimer=null,ctx=null,master=null,voices=null,rangeAnchor=null;
-  let pianoEngaged=false,pianoRenderKey='',startSequence=0,lastPianoSemi=0;
+  let pianoEngaged=false,pianoRenderKey='',startSequence=0,lastPianoSemi=0,modulePitch=null;
   let midiAccess=null,midiInput=null,midiBusy=false,midiEnabled=false,midiPreferred='',midiGeneration=0;
   const midiPedals=new Set();
-  let seriesEngaged=false,seriesMode='solo',seriesProfile='falling',seriesTuning='natural',seriesNodes=null;
+  let seriesEngaged=false,seriesMode='solo',seriesProfile='falling',seriesTuning='natural',seriesComparison='pythagorean',seriesNodes=null;
+  const seriesLevels=Array.from({length:16},(_,i)=>1/(i+1)),harmonicFaders=[];
   const selectedHarmonics=new Set([1]),harmonicButtons=[];
   const heldNotes=new Map(),sustainedNotes=new Map(),pianoVoices=new Map(),pianoButtons=new Map();
   const pianoAttacks=new Map();
@@ -57,7 +64,10 @@
   const pianoNotes=()=>[...heldNotes.values(),...sustainedNotes.values()];
   const activePianoNotes=()=>new Set(pianoNotes().map(note=>note.semi));
   const pianoStart=()=>12*(state.pianoOctave-state.octave);
-  const voiceActive=key=>!seriesEngaged&&state[key+'Enabled']&&(key!=='third'||state.thirdAdded)&&(!pianoEngaged||(key==='drone'&&state.pianoDrone));
+  const mixingPiano=()=>pianoEngaged&&state.pianoAccompaniment==='module';
+  const voiceActive=key=>!seriesEngaged&&state[key+'Enabled']&&(key!=='third'||state.thirdAdded)&&(!pianoEngaged||mixingPiano()||(key==='drone'&&state.pianoAccompaniment==='drone'));
+  const rememberModulePitch=()=>({interval:state.interval,refOctave:state.refOctave,system:state.system,cents:state.cents});
+  function restoreModulePitch(){if(modulePitch){Object.assign(state,modulePitch);$('interval').value=state.interval;$('tuningSystem').value=state.system;}}
   const interval=()=>M.extendInterval(M.tunedInterval(M.intervals.find(i=>i.id===state.interval),state.system),state.mode==='free'?state.refOctave:0,state.system);
   const thirdInterval=()=>M.tunedInterval(M.intervals.find(i=>i.id===state.thirdInterval),state.system);
   const voiceKeys=['drone','upper','third'];
@@ -70,6 +80,11 @@
   const save=()=>{try{localStorage.setItem('intervalle.v1',JSON.stringify(state));}catch{}};
 
   for(const i of M.intervals){const option=document.createElement('option');option.value=i.id;option.textContent=i.name;$('interval').append(option);$('thirdInterval').append(option.cloneNode(true));}
+  for(const id of ['tuningSystem','pianoSystem','harmonicsTuning','extraSystem']){
+    $(id).replaceChildren();
+    if(id==='extraSystem'){const option=document.createElement('option');option.value='';option.textContent='Aucun repère supplémentaire';$(id).append(option);}
+    for(const [key,system] of Object.entries(M.systems)){if(id==='harmonicsTuning'&&key==='equal')continue;const option=document.createElement('option');option.value=key;option.textContent=system.name;$(id).append(option);}
+  }
   const initialFields={freeOctaves:'octaveSpan',waveCycles:'waveCycles',beatSpeed:'beatSpeed',tuningSystem:'system',rootNote:'root',octave:'octave',interval:'interval',reference:'reference',droneTimbre:'droneTimbre',upperTimbre:'upperTimbre',droneVolume:'droneVolume',upperVolume:'upperVolume',masterVolume:'masterVolume',thirdInterval:'thirdInterval',thirdTimbre:'thirdTimbre',thirdVolume:'thirdVolume'};
   for(const [id,key] of Object.entries(initialFields))$(id).value=state[key];
   for(const [source,target] of [['rootNote','harmonicsRoot'],['octave','harmonicsOctave']])for(const option of $(source).children)$(target).append(option.cloneNode(true));
@@ -88,7 +103,7 @@
     smooth(voices.third.osc.frequency,M.transpose(f0(),state.thirdCents));
     for(const key of voiceKeys){
       applyTimbre(voices[key],state[key+'Timbre']);
-      smooth(voices[key].gain.gain,playing&&voiceActive(key)?state[key+'Volume']/100*.28:0,.025);
+      smooth(voices[key].gain.gain,playing&&voiceActive(key)?state[key+'Volume']/100*(mixingPiano()?.22:.28):0,.025);
     }
     updatePianoAudio();
     updateSeriesAudio();
@@ -133,11 +148,12 @@
   }
   function setCents(value,{manual=true,anchor=false,preserveInput=false,preserveReference=false,fromPiano=false}={}){
     if(!Number.isFinite(value))return;
-    if(!fromPiano)clearPiano(true);
+    if(!fromPiano&&!mixingPiano())clearPiano(true);
     if(manual)stopCompare();
     state.cents=Math.max(0,Math.min(maxCents(),value));
     if(state.mode==='free'&&manual&&!preserveReference)selectNearestReference();
     if(anchor)rangeAnchor=state.cents;
+    if(!fromPiano&&mixingPiano())modulePitch=rememberModulePitch();
     render(preserveInput);updateAudio();save();
   }
   function renderTransport(){
@@ -145,8 +161,9 @@
     $('play').setAttribute('aria-pressed',String(playing));
     $('playIcon').textContent=playing?'Ⅱ':'▶';$('playLabel').textContent=playing?'Pause':'Écouter';
     $('statusDot').classList.toggle('active',playing);
-    const audible=state.masterVolume>0&&(voiceKeys.some(key=>voiceActive(key)&&state[key+'Volume']>0)||(pianoEngaged&&activePianoNotes().size&&state.upperEnabled&&state.upperVolume>0));
-    $('statusText').textContent=playing?(seriesEngaged?(state.masterVolume&&selectedHarmonics.size?'Série harmonique en cours':'Série harmonique en sourdine'):audible?'Écoute en cours':pianoEngaged?'Clavier prêt':'Voix en sourdine'):'Prêt à écouter';
+    const audible=state.masterVolume>0&&(voiceKeys.some(key=>voiceActive(key)&&state[key+'Volume']>0)||(pianoEngaged&&activePianoNotes().size&&state.pianoVolume>0));
+    const pianoRoute={solo:'Piano seul · module en pause',drone:'Piano + bourdon · autres notes en pause',module:'Piano + module d’intervalles'};
+    $('statusText').textContent=playing?(seriesEngaged?(state.masterVolume&&selectedHarmonics.size?'Série harmonique en cours':'Série harmonique en sourdine'):pianoEngaged?pianoRoute[state.pianoAccompaniment]:audible?'Écoute en cours':'Voix en sourdine'):'Prêt à écouter';
     renderVisualInfo();
     renderSeries();
   }
@@ -188,9 +205,7 @@
     $('harmonicUpperLabel').textContent='Note 2 · H'+i.d+' = '+i.d+' × f₂';
     $('harmonicBaseHz').textContent=format(r.harmonicBase)+' Hz';$('harmonicUpperHz').textContent=format(r.harmonicUpper)+' Hz';
     $('harmonicGap').textContent='Écart de cette paire : |'+i.n+' × f₁ − '+i.d+' × f₂| ≈ '+format(r.gap)+' Hz';
-    const present=(M.timbres[state.droneTimbre][i.n]||0)>0&&(M.timbres[state.upperTimbre][i.d]||0)>0;
-    const muted=!state.droneEnabled||!state.upperEnabled||!state.droneVolume||!state.upperVolume||!state.masterVolume;
-    const beyond=ctx&&Math.max(r.harmonicBase,r.harmonicUpper)>=ctx.sampleRate/2;
+    const {present,audible,beyond}=visualModel(),muted=!audible;
     $('harmonicNote').textContent=!present?'Cette paire d’harmoniques n’est pas présente dans les deux timbres choisis : le calcul reste théorique.':beyond?'Cette paire dépasse la limite de fréquence du moteur audio : le calcul reste théorique.':muted?'Une des deux voix est en sourdine. Rétablissez les deux pour comparer leurs harmoniques.':r.gap<1e-8?'Ces deux harmoniques coïncident : aucun battement entre elles. Les autres composantes du son restent présentes.':r.gap<=20?'Près du repère pur, cet écart correspond à environ '+format(r.gap,2)+' battements par seconde entre ces deux harmoniques. Leur perception dépend du timbre et du volume.':'Cet écart est trop rapide pour être suivi comme une pulsation lente. Rapprochez le curseur du repère pur.';
     renderVisualInfo();
   }
@@ -202,9 +217,10 @@
       {key:'upper',label:beats?'H'+i.d+' note 2':'Note 2',cycles:duration*(beats?r.harmonicUpper:r.second),color:'#db2893'}];
     if(!beats&&state.thirdAdded)rows.push({key:'third',label:'Note 3',cycles:duration*M.transpose(f0(),state.thirdCents),color:'#008773'});
     const display=M.beatDisplay(r.gap,state.beatSpeed);
-    const present=(M.timbres[state.droneTimbre][i.n]||0)>0&&(M.timbres[state.upperTimbre][i.d]||0)>0;
-    const upperActive=!pianoEngaged||[...activePianoNotes()].some(semi=>Math.abs(M.keyboardPitch(semi,state.pianoSystem).cents-state.cents)<1e-8);
-    const audible=voiceActive('drone')&&upperActive&&state.upperEnabled&&state.droneVolume>0&&state.upperVolume>0&&state.masterVolume>0;
+    const pianoVisual=pianoEngaged&&!mixingPiano();
+    const present=(M.timbres[state.droneTimbre][i.n]||0)>0&&(M.timbres[pianoVisual?state.pianoSynth:state.upperTimbre][i.d]||0)>0&&(!pianoVisual||state.pianoSound!=='sampled');
+    const upperActive=pianoVisual?[...activePianoNotes()].some(semi=>Math.abs(M.keyboardPitch(semi,state.pianoSystem).cents-state.cents)<1e-8):state.upperEnabled;
+    const audible=voiceActive('drone')&&upperActive&&state.droneVolume>0&&(pianoVisual?state.pianoVolume:state.upperVolume)>0&&state.masterVolume>0;
     const beyond=ctx&&Math.max(r.harmonicBase,r.harmonicUpper)>=ctx.sampleRate/2;
     return {i,r,beats,duration,rows,display,present,audible,beyond};
   }
@@ -248,7 +264,7 @@
   }
   function clearPiano(exit=false){
     heldNotes.clear();sustainedNotes.clear();midiPedals.clear();
-    if(exit){pianoEngaged=false;seriesEngaged=false;}
+    if(exit){pianoEngaged=false;seriesEngaged=false;modulePitch=null;}
   }
   const pianoSamples=new Map();let pianoSampleLoad=null;
   const sampleMidis=Array.from({length:30},(_,i)=>21+i*3);
@@ -290,20 +306,21 @@
           voice.sampleMidi=sampleMidis.reduce((a,b)=>Math.abs(a-target)<Math.abs(b-target)?a:b);
           osc.buffer=pianoSamples.get(voice.sampleMidi);osc.playbackRate.value=frequency/M.frequency(voice.sampleMidi);
           osc.onended=()=>{osc.disconnect();gain.disconnect();};
-        }else{applyTimbre(voice,state.upperTimbre);osc.frequency.value=frequency;}
+        }else{applyTimbre(voice,state.pianoSynth);osc.frequency.value=frequency;}
         osc.start();pianoVoices.set(semi,voice);
       }else if(sampled)smooth(voice.osc.playbackRate,frequency/M.frequency(voice.sampleMidi));
-      else{applyTimbre(voice,state.upperTimbre);smooth(voice.osc.frequency,frequency);}
+      else{applyTimbre(voice,state.pianoSynth);smooth(voice.osc.frequency,frequency);}
       // Leave headroom for the optional drone even with many sustained notes.
-      smooth(voice.gain.gain,state.upperEnabled?state.upperVolume/100*.55*Math.max(...pianoNotes().filter(note=>note.semi===semi).map(note=>note.velocity))/Math.max(2,wanted.size):0,.012);
+      smooth(voice.gain.gain,state.pianoVolume/100*(mixingPiano()?.25:.55)*Math.max(...pianoNotes().filter(note=>note.semi===semi).map(note=>note.velocity))/Math.max(2,wanted.size),.012);
     }
   }
   function selectPianoPitch(semi){
     lastPianoSemi=semi;
+    if(mixingPiano()){render();updateAudio();return;}
     const pitch=M.keyboardPitch(semi,state.pianoSystem);
     if(pitch.cents<0||pitch.cents>maxCents()){stopCompare();renderPianoState();updateAudio();renderTransport();return;}
     state.interval=pitch.base.id;state.refOctave=pitch.octaves;
-    state.system=state.pianoSystem==='just'?'equal':state.pianoSystem;
+    state.system=state.pianoSystem;
     $('interval').value=state.interval;$('tuningSystem').value=state.system;
     setCents(pitch.cents,{preserveReference:true,fromPiano:true});
   }
@@ -315,6 +332,7 @@
       for(const [key,note] of sustainedNotes)if(note.semi===semi)sustainedNotes.delete(key);
       updateAudio();renderPianoState();renderTransport();return;
     }
+    if(!pianoEngaged)modulePitch=rememberModulePitch();
     seriesEngaged=false;pianoAttacks.set(semi,(pianoAttacks.get(semi)||0)+1);
     pianoEngaged=true;heldNotes.set(source,{semi,velocity,channel});sustainedNotes.delete(source+':'+semi);
     selectPianoPitch(semi);
@@ -329,17 +347,19 @@
   function renderPianoState(){
     const active=activePianoNotes();
     const pitch=M.keyboardPitch(lastPianoSemi,state.pianoSystem);
-    $('pianoGraphHint').textContent=pianoEngaged&&(pitch.cents<0||pitch.cents>maxCents())?'Cette note est hors de la frise : les graphiques gardent la dernière note située dans son étendue.':'Les graphiques suivent la dernière note située dans la frise, face au bourdon ; ils ne représentent pas l’accord complet.';
+    $('pianoGraphHint').textContent=mixingPiano()?'Les graphiques restent sur l’intervalle du premier module. Les touches du piano s’ajoutent sans changer ses notes.':pianoEngaged&&(pitch.cents<0||pitch.cents>maxCents())?'Cette note est hors de la frise : les graphiques gardent la dernière note située dans son étendue.':'Les graphiques suivent la dernière note située dans la frise, face au bourdon ; ils ne représentent pas l’accord complet.';
     for(const [semi,button] of pianoButtons){
       button.setAttribute('aria-pressed',String(playing&&active.has(semi)));
       button.classList.toggle('selected-note',Math.abs(M.keyboardPitch(semi,state.pianoSystem).cents-state.cents)<.006);
     }
     const names=[...active].sort((a,b)=>a-b).map(semi=>{const p=M.keyboardPitch(semi,state.pianoSystem);return M.intervalNoteName(rootMidi(),p.base,p.octaves);});
-    $('pianoStatus').textContent=!pianoEngaged?'Cliquez sur les touches ou utilisez les lettres indiquées.':!playing?'Piano en pause. Jouez une touche pour reprendre.':!state.upperEnabled||!state.upperVolume||!state.masterVolume?'Piano en sourdine : rétablissez la deuxième note et son volume.':names.length?names.join(' · ')+(state.pianoDrone?' · avec bourdon':' · sans bourdon'):(state.pianoDrone?'Bourdon continu · jouez une note.':'Piano prêt · aucune note maintenue.');
+    const accompaniment={solo:'sans bourdon',drone:'avec bourdon',module:'avec le module d’intervalles'};
+    $('pianoStatus').textContent=!pianoEngaged?'Cliquez sur les touches ou utilisez les lettres indiquées.':!playing?'Piano en pause. Jouez une touche pour reprendre.':!state.pianoVolume||!state.masterVolume?'Piano en sourdine : montez son volume ou le volume général.':names.length?names.join(' · ')+' · '+accompaniment[state.pianoAccompaniment]:'Piano prêt · '+accompaniment[state.pianoAccompaniment]+'.';
   }
   function renderPiano(){
     $('pianoSystem').value=state.pianoSystem;$('pianoLayout').value=state.pianoLayout;
-    $('pianoTimbre').value=state.pianoSound==='sampled'?'sampled':state.upperTimbre;$('pianoDrone').checked=state.pianoDrone;$('pianoHold').checked=state.pianoHold;
+    $('pianoTimbre').value=state.pianoSound==='sampled'?'sampled':state.pianoSynth;$('pianoAccompaniment').value=state.pianoAccompaniment;$('pianoHold').checked=state.pianoHold;
+    $('pianoVolume').value=state.pianoVolume;$('pianoVolumeText').textContent=state.pianoVolume+' %';
     const signature=[rootMidi(),state.octaveSpan,state.pianoSystem,state.pianoLayout,state.pianoOctave].join(':');
     if(signature!==pianoRenderKey){
       pianoRenderKey=signature;pianoButtons.clear();$('pianoKeys').replaceChildren();$('pianoOctave').replaceChildren();
@@ -450,7 +470,7 @@
   $('midiInput').addEventListener('change',e=>{midiPreferred=e.target.value;refreshMidi();});
   if(!navigator.requestMIDIAccess){$('midiConnect').disabled=true;$('midiStatus').textContent='MIDI indisponible ici. Pour brancher un clavier, ouvrez cette page dans Chrome ou Edge sur ordinateur.';}
 
-  const seriesTunings={natural:'série naturelle',just:'accordage juste',equal:'tempérament égal',pythagorean:'accordage pythagoricien',meantone:'mésotonique ¼ comma'};
+  const seriesTunings={natural:'série naturelle',...Object.fromEntries(Object.entries(M.systems).map(([key,system])=>[key,system.name]))};
   const svgNS='http://www.w3.org/2000/svg';
   function svgElement(tag,attrs={},text=''){
     const node=document.createElementNS(svgNS,tag);for(const [key,value] of Object.entries(attrs))node.setAttribute(key,value);if(text)node.textContent=text;return node;
@@ -459,6 +479,8 @@
   function selectHarmonic(n){
     if(seriesMode==='solo'){selectedHarmonics.clear();selectedHarmonics.add(n);}
     else if(selectedHarmonics.has(n))selectedHarmonics.delete(n);else selectedHarmonics.add(n);
+    if(selectedHarmonics.has(n)&&seriesLevels[n-1]===0)seriesLevels[n-1]=1/n;
+    seriesProfile='custom';
     void startSeries();
   }
   function seriesPitch(n){
@@ -474,13 +496,13 @@
   }
   function offsetText(cents){return Math.abs(cents)<.05?'0 ct':(cents>0?'↑ +':'↓ −')+format(Math.abs(cents),1)+' ct';}
   function renderHarmonicScore(){
-    const key=[rootMidi(),seriesTuning,...selectedHarmonics].join(':');if(key===scoreKey)return;scoreKey=key;
+    const key=[rootMidi(),seriesTuning,...selectedHarmonics,...seriesLevels].join(':');if(key===scoreKey)return;scoreKey=key;
     const score=$('harmonicsScore'),focused=document.activeElement?.dataset?.harmonic;score.replaceChildren();
     const width=1640,left=122,step=94;
     const transposeOctaves=Math.max(0,state.octave-3);
     const pitchY=midi=>{const degree=[0,0,1,2,2,3,3,4,5,5,6,6][((midi%12)+12)%12]+7*(Math.floor(midi/12)-1);return 170-(degree-28)*6;};
     const notes=Array.from({length:16},(_,i)=>{const h=seriesPitch(i+1);return {...h,y:pitchY(rootMidi()+h.semitones-12*transposeOctaves)};});
-    const top=Math.min(32,...notes.map(h=>h.y-45)),bottom=Math.max(260,...notes.map(h=>h.y+25)),height=bottom+111-top;
+    const top=Math.min(32,...notes.map(h=>h.y-45)),bottom=Math.max(260,...notes.map(h=>h.y+25)),height=bottom+190-top;
     score.setAttribute('viewBox','0 '+top+' '+width+' '+height);
     score.append(svgElement('title',{},'Série harmonique interactive : '+seriesTunings[seriesTuning]));
     score.append(svgElement('desc',{},'Cliquez sur une note pour l’écouter. Les écarts en cents sont mesurés par rapport au tempérament égal.'));
@@ -491,6 +513,7 @@
     score.append(svgElement('text',{x:10,y:bottom+35,class:'score-row-label'},'Écart / égal'));
     score.append(svgElement('text',{x:10,y:bottom+62,class:'score-row-label'},'Hn / H1'));
     score.append(svgElement('text',{x:10,y:bottom+85,class:'score-row-label'},'Dans l’octave'));
+    score.append(svgElement('text',{x:10,y:bottom+137,class:'score-row-label'},'Amplitude'));
     notes.forEach((h,index)=>{
       const x=left+index*step,n=index+1,selected=selectedHarmonics.has(n);
       const group=svgElement('g',{class:'score-note',role:'button',tabindex:0,'data-harmonic':n,'aria-pressed':String(selected),'aria-label':'H'+n+', '+h.note+', '+seriesTunings[seriesTuning]+', '+offsetText(h.heardOffset)+', rapport naturel '+n+'/1, dans l’octave '+harmonicFraction(n)});
@@ -509,6 +532,10 @@
       group.append(svgElement('text',{x,y:bottom+35,'text-anchor':'middle',class:'score-cents'},offsetText(h.heardOffset)));
       group.append(svgElement('text',{x,y:bottom+62,'text-anchor':'middle',class:'score-fraction'},n+'/1'));
       group.append(svgElement('text',{x,y:bottom+85,'text-anchor':'middle',class:'score-reduced'},harmonicFraction(n)));
+      const level=selected?seriesLevels[index]:0,barHeight=60*level;
+      group.append(svgElement('rect',{x:x-13,y:bottom+102,width:26,height:60,rx:3,class:'score-level-track'}));
+      group.append(svgElement('rect',{x:x-13,y:bottom+162-barHeight,width:26,height:barHeight,rx:3,class:'score-level-bar'}));
+      group.append(svgElement('text',{x,y:bottom+180,'text-anchor':'middle',class:'score-level-value'},format(level*100,0)+' %'));
       group.addEventListener('click',()=>selectHarmonic(n));
       group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectHarmonic(n);}});
       score.append(group);
@@ -527,8 +554,9 @@
       });
     }
     if(!seriesNodes)return;
-    const amplitude=n=>seriesProfile==='falling'?1/n:1;
-    const total=[...selectedHarmonics].reduce((sum,n)=>sum+amplitude(n),0)||1;
+    const amplitude=n=>seriesLevels[n-1];
+    // Keep lowering a lone partial audible as a level change; normalize only above unity.
+    const total=Math.max(1,[...selectedHarmonics].reduce((sum,n)=>sum+amplitude(n),0));
     seriesNodes.forEach((voice,index)=>{
       const n=index+1,h=seriesPitch(n),freq=h.heard;
       smooth(voice.osc.frequency,freq);
@@ -539,20 +567,24 @@
     $('harmonicsRoot').value=state.root;$('harmonicsOctave').value=state.octave;$('harmonicsProfile').value=seriesProfile;
     $('harmonicsBase').textContent=M.noteName(rootMidi())+' · '+format(f0())+' Hz';
     $('harmonicsFormula').textContent=seriesTuning==='natural'?'fₙ = n × f₁':'f = f₁ × 2^(cents/1 200)';
-    $('harmonicsTuning').value=seriesTuning;
+    $('harmonicsTuning').value=seriesComparison;
     $('harmonicsNatural').setAttribute('aria-pressed',String(seriesTuning==='natural'));
     $('harmonicsTempered').setAttribute('aria-pressed',String(seriesTuning==='equal'));
+    $('harmonicsChosen').textContent=M.systems[seriesComparison].name;
+    $('harmonicsChosen').setAttribute('aria-pressed',String(seriesTuning===seriesComparison));
     $('harmoniques').classList.toggle('tempered-series',seriesTuning==='equal');
     $('harmonicsComparisonHint').textContent=seriesTuning==='natural'?'Fréquences exactes n × f₁. Sélectionnez H5 ou H7, puis alternez les deux accordages.':'Notes de l’'+seriesTunings[seriesTuning]+' les plus proches de la série ; les cents affichés mesurent leur écart au tempérament égal.';
     $('harmonicsSolo').setAttribute('aria-pressed',String(seriesMode==='solo'));
     $('harmonicsSum').setAttribute('aria-pressed',String(seriesMode==='sum'));
-    $('harmonicsInstruction').textContent=seriesMode==='solo'?'Cliquez sur une harmonique pour l’écouter seule.':'Activez ou retirez des harmoniques : écoutez le timbre se transformer.';
+    $('harmonicsSum').textContent=seriesMode==='sum'?'✓ Superposition activée':'＋ Superposer les harmoniques';
+    $('harmonicsInstruction').textContent=seriesMode==='solo'?'Cliquez sur une note pour l’isoler. Activez « Superposer les harmoniques » pour construire un timbre.':'Cliquez sur les notes à superposer et réglez leurs niveaux sous la portée. Naturel, Égal et l’accordage choisi conservent ce même timbre.';
     for(let n=1;n<=16;n++){
       const h=seriesPitch(n),item=harmonicButtons[n-1];
       const offset=offsetText(h.heardOffset);
       item.button.setAttribute('aria-pressed',String(selectedHarmonics.has(n)));
       item.button.setAttribute('aria-label','H'+n+', '+h.note+', entendue '+format(h.heard)+' hertz, tempérée '+format(h.equalFrequency)+' hertz, '+offset);
-      item.button.style.setProperty('--partial-height',((seriesProfile==='falling'?1/n:1)*100)+'%');
+      item.button.style.setProperty('--partial-height',(seriesLevels[n-1]*100)+'%');
+      const fader=harmonicFaders[n-1];fader.input.value=seriesLevels[n-1]*100;fader.output.textContent=format(seriesLevels[n-1]*100,0)+' %';fader.label.classList.toggle('active',selectedHarmonics.has(n));
       item.note.textContent=h.note;item.frequency.textContent=seriesTuning==='natural'?n+' × '+format(f0())+' ≈ '+format(h.heard)+' Hz':'Entendue : '+format(h.heard)+' Hz';
       item.fraction.textContent='Naturel : '+n+'/1 · octave : '+harmonicFraction(n);
       item.tempered.textContent='Tempérée : '+format(h.equalFrequency)+' Hz';
@@ -579,6 +611,11 @@
     button.append(bar,rank,note,fraction,frequency,tempered,offset);$('harmonicsGrid').append(button);
     harmonicButtons.push({button,note,fraction,frequency,tempered,offset});
     button.addEventListener('click',()=>selectHarmonic(n));
+    const label=document.createElement('label');label.className='harmonic-fader';
+    const title=document.createElement('span');title.textContent='H'+n;
+    const input=document.createElement('input');input.type='range';input.min=0;input.max=100;input.step=1;input.id='harmonicLevel'+n;input.setAttribute('aria-label','Volume de H'+n);
+    const output=document.createElement('output');output.setAttribute('for',input.id);label.append(title,input,output);$('harmonicLevels').append(label);harmonicFaders.push({label,input,output});
+    input.addEventListener('input',e=>{seriesLevels[n-1]=Math.max(0,Math.min(100,Number(e.target.value)))/100;seriesProfile='custom';seriesMode='sum';if(seriesLevels[n-1]>0)selectedHarmonics.add(n);else selectedHarmonics.delete(n);updateAudio();renderSeries();});
   }
   $('harmonicsPlay').addEventListener('click',()=>{if(playing&&seriesEngaged)stop();else void startSeries();});
   for(const [id,mode] of [['harmonicsSolo','solo'],['harmonicsSum','sum']])$(id).addEventListener('click',()=>{
@@ -586,11 +623,12 @@
     if(mode==='solo'&&selectedHarmonics.size!==1){const first=[...selectedHarmonics].sort((a,b)=>a-b)[0]||1;selectedHarmonics.clear();selectedHarmonics.add(first);}
     updateAudio();renderSeries();
   });
-  $('harmonicsProfile').addEventListener('change',e=>{seriesProfile=e.target.value;updateAudio();renderSeries();});
-  $('harmonicsTuning').addEventListener('change',e=>{seriesTuning=e.target.value;updateAudio();renderSeries();});
+  $('harmonicsProfile').addEventListener('change',e=>{seriesProfile=e.target.value;if(seriesProfile!=='custom'){for(let n=1;n<=16;n++)seriesLevels[n-1]=seriesProfile==='falling'?1/n:seriesProfile==='odd'?(n%2?1/n:0):seriesProfile==='soft'?M.timbres.flute[n]||0:seriesProfile==='organ'?M.timbres.organ[n]||0:seriesProfile==='fundamental'?(n===1?1:0):1;seriesMode='sum';selectedHarmonics.clear();seriesLevels.forEach((level,index)=>{if(level>0)selectedHarmonics.add(index+1);});}updateAudio();renderSeries();});
+  $('harmonicsTuning').addEventListener('change',e=>{if(!Object.hasOwn(M.systems,e.target.value)||e.target.value==='equal')return;seriesComparison=e.target.value;seriesTuning=seriesComparison;updateAudio();renderSeries();});
+  $('harmonicsChosen').addEventListener('click',()=>{seriesTuning=seriesComparison;updateAudio();renderSeries();});
   for(const [id,tuning] of [['harmonicsNatural','natural'],['harmonicsTempered','equal']])$(id).addEventListener('click',()=>{seriesTuning=tuning;updateAudio();renderSeries();});
   for(const [id,numbers] of [['harmonicsFirst',[1]],['harmonicsEight',[1,2,3,4,5,6,7,8]],['harmonicsOdd',[1,3,5,7,9,11,13,15]],['harmonicsAll',Array.from({length:16},(_,i)=>i+1)]])$(id).addEventListener('click',()=>{
-    selectedHarmonics.clear();numbers.forEach(n=>selectedHarmonics.add(n));seriesMode=numbers.length===1?'solo':'sum';void startSeries();
+    selectedHarmonics.clear();numbers.forEach(n=>{selectedHarmonics.add(n);if(seriesLevels[n-1]===0)seriesLevels[n-1]=1/n;});seriesProfile='custom';seriesMode=numbers.length===1?'solo':'sum';void startSeries();
   });
   for(const [id,key,original] of [['harmonicsRoot','root','rootNote'],['harmonicsOctave','octave','octave']])$(id).addEventListener('change',e=>{clearPiano();state[key]=Number(e.target.value);$(original).value=state[key];render();updateAudio();save();});
   function renderFree(){
@@ -601,14 +639,15 @@
     $('freeSlider').max=maxCents();$('freeSlider').value=state.cents;$('freeCents').max=maxCents();
     if(document.activeElement!==$('freeCents'))$('freeCents').value=state.cents.toFixed(2);
     $('freeSelection').textContent=upperNoteName()+' · '+format(state.cents)+' cents · '+format(M.transpose(f0(),state.cents))+' Hz';
-    const definitions=[['showJust','just','Juste'],['showEqual','equal','Égal'],['showPyth','pythagorean','Pythagoricien'],['showMeantone','meantone','Mésotonique']];
-    definitions.forEach(([key])=>{$(key).checked=state[key];});
-    const key=[rootMidi(),state.octaveSpan,...definitions.map(([key])=>state[key])].join(':');
+    const flags=[['showJust','just','Juste'],['showEqual','equal','Égal'],['showPyth','pythagorean','Pythagoricien'],['showMeantone','meantone','Mésotonique']];
+    flags.forEach(([key])=>{$(key).checked=state[key];});$('extraSystem').value=state.extraSystem;
+    const definitions=flags.filter(([flag])=>state[flag]).map(([,system,label])=>[system,label]);
+    if(state.extraSystem&&!definitions.some(([id])=>id===state.extraSystem))definitions.push([state.extraSystem,M.systems[state.extraSystem].name]);
+    const key=[rootMidi(),state.octaveSpan,...definitions.map(([id])=>id)].join(':');
     if(timelineKey!==key){
       timelineKey=key;timelineMarkers=[];$('freeRows').replaceChildren();$('freeTicks').replaceChildren();
       $('freeTimeline').style.minWidth=(state.octaveSpan*820)+'px';
-      for(const [flag,system,label] of definitions){
-        if(!state[flag])continue;
+      for(const [system,label] of definitions){
         const row=document.createElement('div');row.className='free-row '+system+'-row';
         const heading=document.createElement('strong');heading.textContent=label;row.append(heading);
         const track=document.createElement('div');track.className='free-marker-track';row.append(track);
@@ -620,7 +659,7 @@
           const noteLabel=document.createElement('span');noteLabel.textContent=note;button.append(noteLabel);
           const centsLabel=document.createElement('small');centsLabel.textContent=format(target,1);button.append(centsLabel);
           button.setAttribute('aria-label',note+', '+label+', '+format(target)+' cents');
-          button.addEventListener('click',()=>{state.interval=base.id;state.refOctave=oct;state.system=system==='just'?'equal':system;$('interval').value=base.id;$('tuningSystem').value=state.system;setCents(target,{preserveReference:true});});
+          button.addEventListener('click',()=>{state.interval=base.id;state.refOctave=oct;state.system=system;$('interval').value=base.id;$('tuningSystem').value=state.system;setCents(target,{preserveReference:true});});
           track.append(button);timelineMarkers.push({button,target});
         }
         $('freeRows').append(row);
@@ -682,7 +721,7 @@
     renderFree();renderThird();renderRatios();renderTransport();
   }
 
-  $('tuningSystem').addEventListener('change',e=>{clearPiano(true);stopCompare();state.system=e.target.value;state.pianoSystem=state.system;rangeAnchor=null;state.cents=interval().equal;state.thirdCents=thirdInterval().equal;render();updateAudio();stopCompare();save();});
+  $('tuningSystem').addEventListener('change',e=>{const mixed=mixingPiano();if(!mixed)clearPiano(true);stopCompare();state.system=e.target.value;if(!mixed)state.pianoSystem=state.system;rangeAnchor=null;state.cents=interval().equal;state.thirdCents=thirdInterval().equal;if(mixed)modulePitch=rememberModulePitch();render();updateAudio();stopCompare();save();});
   function revealPiano(){
     if(state.mode!=='free'){
       clearPiano(true);stopCompare();state.mode='free';selectNearestReference();render();updateAudio();save();
@@ -705,10 +744,11 @@
   $('freeCents').addEventListener('input',e=>{if(e.target.value)setCents(Number(e.target.value));});
   $('freeCents').addEventListener('change',()=>{$('freeCents').value=state.cents.toFixed(2);});
   for(const key of ['showJust','showEqual','showPyth','showMeantone'])$(key).addEventListener('change',e=>{state[key]=e.target.checked;renderFree();save();});
+  $('extraSystem').addEventListener('change',e=>{state.extraSystem=e.target.value;renderFree();save();});
   $('pianoSystem').addEventListener('change',e=>{state.pianoSystem=e.target.value;if(pianoEngaged)selectPianoPitch(lastPianoSemi);else renderPiano();updateAudio();save();});
   $('pianoTimbre').addEventListener('change',async e=>{
     state.pianoSound=e.target.value==='sampled'?'sampled':'synth';
-    if(state.pianoSound==='synth'){state.upperTimbre=e.target.value;$('upperTimbre').value=state.upperTimbre;$('pianoSoundStatus').textContent='Son continu : les notes durent tant qu’elles sont maintenues.';}
+    if(state.pianoSound==='synth'){state.pianoSynth=e.target.value;$('pianoSoundStatus').textContent='Son continu : les notes durent tant qu’elles sont maintenues.';}
     updateAudio();render();save();
     if(state.pianoSound==='sampled'){try{await initAudio();await loadPianoSamples();updateAudio();}catch{$('pianoSoundStatus').textContent='Cliquez sur Écouter pour activer le son, puis réessayez.';}}
   });
@@ -718,7 +758,9 @@
   $('pianoOctaveDown').addEventListener('click',()=>setPianoOctave(state.pianoOctave-1));
   $('pianoOctaveUp').addEventListener('click',()=>setPianoOctave(state.pianoOctave+1));
   $('pianoLayout').addEventListener('change',e=>{releaseScreenKeys();state.pianoLayout=e.target.value;renderPiano();save();});
-  $('pianoDrone').addEventListener('change',e=>{state.pianoDrone=e.target.checked;updateAudio();renderPianoState();renderTransport();save();});
+  $('pianoAccompaniment').addEventListener('change',e=>{state.pianoAccompaniment=e.target.value;if(pianoEngaged){if(mixingPiano())restoreModulePitch();else selectPianoPitch(lastPianoSemi);}render();updateAudio();save();});
+  $('pianoVolume').addEventListener('input',e=>{state.pianoVolume=Number(e.target.value);renderPiano();updateAudio();renderTransport();save();});
+  $('pianoReturn').addEventListener('click',async()=>{restoreModulePitch();clearPiano(true);stopCompare();render();updateAudio();if(!playing)await start();save();});
   $('pianoHold').addEventListener('change',e=>{state.pianoHold=e.target.checked;if(!state.pianoHold)for(const [source,note] of sustainedNotes)if(note.channel===null||!midiPedals.has(note.channel))sustainedNotes.delete(source);updateAudio();renderPianoState();renderTransport();save();});
   $('pianoPan').addEventListener('input',e=>{const scroller=$('pianoKeys').parentElement;scroller.scrollLeft=Number(e.target.value)/100*Math.max(0,scroller.scrollWidth-scroller.clientWidth);});
   $('pianoKeys').parentElement.addEventListener('scroll',()=>{const scroller=$('pianoKeys').parentElement;$('pianoPan').value=100*scroller.scrollLeft/Math.max(1,scroller.scrollWidth-scroller.clientWidth);});

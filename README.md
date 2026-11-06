@@ -10,10 +10,10 @@ Cliquer sur **Écouter** en haut. Choisir le bourdon et l’intervalle, ou ouvri
 
 Sur iPhone/iPad avec iOS/iPadOS 17 ou ultérieur et un navigateur compatible, l’application demande une session musicale `playback` au premier geste de lecture, avant de créer le contexte audio : la sonnerie peut rester coupée. Garder le volume multimédia audible. Les navigateurs sans cette API ou qui refusent le réglage conservent leur comportement habituel ; sur les anciens iPhone, il peut être nécessaire de désactiver le mode silencieux. Ce réglage concerne le bourdon, le piano et les harmoniques. Il ne garantit pas la lecture écran verrouillé. [Explication WebKit](https://bugs.webkit.org/show_bug.cgi?id=237322#c6).
 
-- Repères justes, égaux, pythagoriciens et mésotoniques.
+- Douze accordages : égal, juste, pythagoricien, mésotoniques 1/4, 1/5 et 1/6 de comma, Werckmeister III et IV, Kirnberger III (Forkel 1779), Vallotti, Young II et Kellner. [Variantes, données et formules](TUNINGS.md). Un sélecteur ajoute un repère supplémentaire dans la frise.
 - Piano polyphonique sous la frise : souris, multitouch avec glissando, clavier AZERTY ou QWERTY, de une à trois octaves. Sur smartphone : touches agrandies, curseur de déplacement horizontal et mode « Agrandir le piano », utilisable en paysage.
-- Piano avec ou sans bourdon, maintien des notes, accordages juste, égal, pythagoricien et mésotonique.
-- Série harmonique H1 à H16 : sinusoïdes seules ou additionnées, amplitudes égales ou décroissantes, fréquences exactes et écarts aux notes tempérées. Portée interactive : notes cliquables, fractions naturelles et fractions réduites dans l’octave, cents recalculés selon la série naturelle ou les accordages égal, juste à limite 5, pythagoricien et mésotonique. La référence des écarts est toujours le tempérament égal. Accès direct : https://thrakasmm.github.io/intervalles-et-temperaments/#harmoniques.
+- Piano seul, avec bourdon ou avec le module d’intervalles ; maintien des notes et douze accordages. En mode combiné, les notes et graphiques du module restent indépendants du piano. Timbre et volume du piano indépendants. « Écouter le module seul » libère le piano et retrouve l’intervalle précédent.
+- Série harmonique H1 à H16 : sinusoïdes seules ou additionnées, amplitudes égales ou décroissantes, fréquences exactes et écarts aux notes tempérées. Portée interactive : notes cliquables, fractions naturelles et fractions réduites dans l’octave, cents recalculés selon la série naturelle ou les douze accordages fixes. La référence des écarts est toujours le tempérament égal. Accès direct : https://thrakasmm.github.io/intervalles-et-temperaments/#harmoniques.
 - Quatre timbres synthétiques, volume et sourdine pour chaque voix.
 - Deux voix par défaut, troisième note dans Options avancées.
 - Formules, cents et rapports de fréquences.
@@ -23,7 +23,13 @@ Sur iPhone/iPad avec iOS/iPadOS 17 ou ultérieur et un navigateur compatible, l�
 
 Le piano démarre au premier appui. Les lettres affichées couvrent la première octave du clavier visible. **−1 octave / +1 octave** ou le sélecteur déplacent le piano indépendamment du bourdon, entre les octaves de départ 1 et 6. L’étendue visible suit celle de la frise. Les notes maintenues restent audibles entre octaves et lors des changements de focus. Avec « Maintenir les notes », recliquer une touche allumée (ou retaper sa lettre) coupe cette note seule ; les autres continuent. Les touches MIDI conservent le comportement habituel d’une pédale. Relâcher « Maintenir les notes » coupe les notes relâchées, en tenant compte d’une éventuelle pédale MIDI. Échap arrête tout, et « Tout relâcher » libère les notes maintenues.
 
-Les graphiques suivent la dernière note située dans la frise, pas l’accord complet. Une note plus grave ou plus aiguë reste jouable ; un message indique alors que les graphiques gardent la dernière note de la frise.
+En mode Piano seul ou Piano + bourdon, les graphiques suivent la dernière note située dans la frise, pas l’accord complet. En mode Piano + module d’intervalles, ils conservent les notes du premier module. Une note plus grave ou plus aiguë reste jouable ; un message indique alors que les graphiques gardent la dernière note de la frise.
+
+### Construire un timbre sur la portée
+
+Seize curseurs règlent les amplitudes H1–H16, de 0 à 100 %, directement sous les notes. La portée affiche les niveaux des partiels actifs. Un réglage manuel active la superposition et le partiel concerné ; 0 % le coupe. Le bouton **Superposer les harmoniques** affiche clairement son état. Les presets **Sinusoïde**, **Flûte**, **Clarinette**, **Orgue**, **Brillant (1/n)** et **Amplitudes égales** donnent des points de départ modifiables. Ce sont des modèles de synthèse additive, pas des enregistrements d’instruments.
+
+Les boutons **Naturel**, **Égal** et **l’accordage choisi** conservent la sélection et les amplitudes pendant la comparaison. Le sélecteur du troisième accordage reste sur son choix lorsque les deux autres boutons sont utilisés. Les niveaux sont relatifs : lorsque la somme dépasse 1, le moteur compense le niveau global pour conserver une marge audio. Baisser une harmonique isolée diminue bien son amplitude.
 
 ### Clavier MIDI
 

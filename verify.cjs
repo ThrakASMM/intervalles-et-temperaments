@@ -143,8 +143,8 @@ const el=id=>els.get(id);
   near(pianoChord[1].frequency.value/ctx.osc[0].frequency.value,2**(4/12));
   keyEvent('keyup','d','KeyD');assert(pianoChord[1].stopped);assert.equal(chordGains[1].gain.value,0);
   assert(!pianoChord[0].stopped&&!pianoChord[2].stopped,'Releasing one note preserves the others');
-  el('pianoDrone').checked=true;await el('pianoDrone').emit('change');assert(ctx.gains[1].gain.value>0);
-  el('pianoDrone').checked=false;await el('pianoDrone').emit('change');assert.equal(ctx.gains[1].gain.value,0);
+  await el('pianoAccompaniment').emit('change','drone');assert(ctx.gains[1].gain.value>0);
+  await el('pianoAccompaniment').emit('change','solo');assert.equal(ctx.gains[1].gain.value,0);
   el('pianoHold').checked=true;await el('pianoHold').emit('change');
   keyEvent('keyup','q','KeyQ');keyEvent('keyup','g','KeyG');
   assert(chordGains[0].gain.value>0&&chordGains[2].gain.value>0,'Sustain preserves released notes');
@@ -178,15 +178,15 @@ const el=id=>els.get(id);
   for(const gain of ctx.gains.slice(1,4))near(gain.gain.value,0);
   await el('harmonicsGrid').children[6].emit('click');
   near(seriesOsc[6].frequency.value,7*ctx.osc[0].frequency.value);
-  near(seriesGains[6].gain.value,.35);near(seriesGains[0].gain.value,0);
+  near(seriesGains[6].gain.value,.35/7);near(seriesGains[0].gain.value,0);
   await el('harmonicsTempered').emit('click');
   near(seriesOsc[6].frequency.value,ctx.osc[0].frequency.value*2**(34/12));
-  near(seriesGains[6].gain.value,.35);
+  near(seriesGains[6].gain.value,.35/7);
   assert.equal(el('harmonicsGrid').children[6].attributes['aria-pressed'],'true');
   await el('harmonicsNatural').emit('click');near(seriesOsc[6].frequency.value,7*ctx.osc[0].frequency.value);
   await el('harmonicsSum').emit('click');await el('harmonicsGrid').children[2].emit('click');
   near(seriesGains[2].gain.value/seriesGains[6].gain.value,7/3);
-  near(seriesGains.reduce((sum,g)=>sum+g.gain.value,0),.35);
+  near(seriesGains.reduce((sum,g)=>sum+g.gain.value,0),.35*(1/3+1/7));
   await el('harmonicsProfile').emit('change','equal');near(seriesGains[2].gain.value,seriesGains[6].gain.value);
   await el('harmonicsOdd').emit('click');
   seriesGains.forEach((g,index)=>assert.equal(g.gain.value>0,index%2===0));
@@ -265,7 +265,7 @@ const el=id=>els.get(id);
   const scoreNote=n=>el('harmonicsScore').children.find(g=>g.attributes['data-harmonic']===n);
   await el('harmonicsSolo').emit('click');await scoreNote(7).emit('click');assert.match(el('harmonicsStatus').textContent,/H7/);
   for(const [tuning,expected] of [['natural',-31.17409353087553],['equal',0],['just',17.59628786593987],['pythagorean',-3.910001730774837],['meantone',6.843143067582787]]){
-    await el('harmonicsTuning').emit('change',tuning);
+    if(tuning==='natural')await el('harmonicsNatural').emit('click');else if(tuning==='equal')await el('harmonicsTempered').emit('click');else await el('harmonicsTuning').emit('change',tuning);
     const ratio=seriesOsc[6].frequency.value/M.frequency(48);
     near(1200*Math.log2(ratio)-3400,expected);
     const text=scoreNote(7).children.find(c=>c.attributes.class==='score-cents').textContent;
@@ -274,6 +274,50 @@ const el=id=>els.get(id);
   assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-fraction').textContent,'5/1');
   assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-reduced').textContent,'5/4');
   await el('harmonicsPlay').emit('click');
+  // Twelve fixed scales, sourced historical reference values and exact regular fifths.
+  assert.equal(Object.keys(M.systems).length,12);
+  for(const [id,thirdCents] of [['werckmeister3',390.225],['werckmeister4',392.18],['kirnberger3',1200*Math.log2(5/4)],['vallotti',392.18],['young2',392.18],['kellner',389.052]])near(M.tunedInterval(third,id).equal,thirdCents);
+  for(const parts of [5,6])near(M.tunedInterval(fifth,'meantone'+parts).equal,1200*Math.log2((3/2)*(80/81)**(1/parts)));
+  for(const id of Object.keys(M.systems)){
+    const pitches=Array.from({length:13},(_,semi)=>M.keyboardPitch(semi,id).cents);
+    near(pitches[0],0);near(pitches[12],1200);pitches.slice(1).forEach((value,index)=>assert(value>pitches[index]));
+    await el('tuningSystem').emit('change',id);assert.equal(el('systemDescription').textContent,M.systems[id].description);
+  }
+  await el('extraSystem').emit('change','werckmeister3');assert(el('freeRows').children.some(row=>row.children[0].textContent==='Werckmeister III'));
+
+  // Piano + module preserves pitches, independent timbre/level, and module mute.
+  await el('pianoReturn').emit('click');await el('interval').emit('change','M3');await el('tuningSystem').emit('change','equal');
+  await el('pianoAccompaniment').emit('change','module');const moduleHz=ctx.osc[1].frequency.value,moduleWave=ctx.osc[1].wave;
+  keyEvent('keydown','g','KeyG');await new Promise(resolve=>setImmediate(resolve));
+  const mixedNote=ctx.osc.at(-1),mixedGain=ctx.gains.at(-1);
+  near(ctx.osc[1].frequency.value,moduleHz);assert(ctx.gains[1].gain.value>0&&ctx.gains[2].gain.value>0&&mixedGain.gain.value>0);
+  await el('pianoTimbre').emit('change','flute');assert.deepEqual(ctx.osc[1].wave,moduleWave,'Piano timbre cannot change the module');
+  await el('upperToggle').emit('click');near(ctx.gains[2].gain.value,0);assert(mixedGain.gain.value>0,'Module mute does not mute the piano');await el('upperToggle').emit('click');
+  await el('pianoVolume').emit('input',0);near(mixedGain.gain.value,0);assert(ctx.gains[2].gain.value>0);await el('pianoVolume').emit('input',65);
+  await el('centsInput').emit('input','410');assert(!mixedNote.stopped,'Editing the interval in mixed mode keeps the piano');near(ctx.osc[1].frequency.value/M.frequency(48),2**(410/1200));
+  await el('pianoAccompaniment').emit('change','solo');near(ctx.gains[1].gain.value,0);near(ctx.gains[2].gain.value,0);
+  await el('pianoReturn').emit('click');assert(mixedNote.stopped);near(ctx.osc[1].frequency.value/M.frequency(48),2**(410/1200));assert(ctx.gains[1].gain.value>0&&ctx.gains[2].gain.value>0);
+
+  // Additive mixer: actual gain changes, zero mute, displayed amplitudes and A/B/C preservation.
+  await el('harmonicsPlay').emit('click');await el('harmonicsProfile').emit('change','fundamental');
+  const fader=n=>el('harmonicLevels').children[n-1].children[1];
+  await fader(1).emit('input',50);near(seriesGains[0].gain.value,.175);
+  await fader(2).emit('input',25);near(seriesGains[1].gain.value,.0875);near(seriesGains[0].gain.value/seriesGains[1].gain.value,2);
+  await fader(1).emit('input',100);near(seriesGains[0].gain.value/seriesGains[1].gain.value,4);near(seriesGains.reduce((sum,g)=>sum+g.gain.value,0),.35);
+  await fader(2).emit('input',0);near(seriesGains[1].gain.value,0);assert.equal(el('harmonicsSum').attributes['aria-pressed'],'true');
+  await fader(5).emit('input',30);const levelsBefore=el('harmonicLevels').children.map(label=>label.children[1].value),gainsBefore=seriesGains.map(g=>g.gain.value);
+  await el('harmonicsTuning').emit('change','pythagorean');near(seriesOsc[4].frequency.value/M.frequency(48),81/16);
+  await el('harmonicsTempered').emit('click');near(seriesOsc[4].frequency.value/M.frequency(48),2**(28/12));assert.equal(el('harmonicsTuning').value,'pythagorean');
+  await el('harmonicsNatural').emit('click');near(seriesOsc[4].frequency.value/M.frequency(48),5);assert.equal(el('harmonicsTuning').value,'pythagorean');
+  await el('harmonicsChosen').emit('click');near(seriesOsc[4].frequency.value/M.frequency(48),81/16);assert.equal(el('harmonicsChosen').attributes['aria-pressed'],'true');
+  assert.deepEqual(el('harmonicLevels').children.map(label=>label.children[1].value),levelsBefore);assert.deepEqual(seriesGains.map(g=>g.gain.value),gainsBefore);
+  assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-level-value').textContent,'30 %');
+  await el('harmonicsProfile').emit('change','odd');seriesGains.forEach((g,index)=>assert.equal(g.gain.value>0,index%2===0));
+  await el('harmonicsProfile').emit('change','organ');near(seriesGains[1].gain.value/seriesGains[0].gain.value,.55);
+  await el('harmonicsProfile').emit('change','soft');near(seriesGains[1].gain.value/seriesGains[0].gain.value,.18);near(seriesGains[6].gain.value,0);
+  await el('harmonicsGrid').children[6].emit('click');assert(seriesGains[6].gain.value>0,'Clicking a zeroed partial restores a usable level');
+  await el('harmonicsPlay').emit('click');
+  console.log('PASS — 12 accordages, piano + module indépendant, volumes H1–H16, barres et comparaison Naturel / Égal / choix conservé.');
   console.log('PASS — audio session '+audioSessionMode+' ; octave indépendante, sustain entre octaves/focus, MIDI (notes, vélocité, pédales, canaux, connexion/refus), piano enregistré et portée interactive.');
 
   console.log('PASS — série H1 à H16 : fréquences, cents, solo, addition, amplitudes, impaires, fondamentale, arrêt et retour aux intervalles.');
