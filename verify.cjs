@@ -9,7 +9,7 @@ function element(){
   return {value:'',textContent:'',hidden:false,attributes:{},dataset:{},children:[],listeners:{},parentElement:{hidden:false,addEventListener(){}},
     classList:{toggle(){}},style:{setProperty(k,v){this[k]=v}},clientWidth:600,clientHeight:160,
     setAttribute(k,v){this.attributes[k]=v},append(...nodes){this.children.push(...nodes)},replaceChildren(){this.children=[]},cloneNode(){return element()},
-    addEventListener(k,fn){this.listeners[k]=fn},focus(){},blur(){},getContext(){return new Proxy({},{get:(o,k)=>o[k]||(()=>{})})},
+    addEventListener(k,fn){this.listeners[k]=fn},focus(){},scrollIntoView(){},blur(){},getContext(){return new Proxy({},{get:(o,k)=>o[k]||(()=>{})})},
     setPointerCapture(){},hasPointerCapture(){return true},
     async emit(k,value,details={}){if(value!==undefined)this.value=String(value);return this.listeners[k]?.({target:this,shiftKey:false,button:0,pointerId:1,detail:1,preventDefault(){},...details});}};
 }
@@ -19,7 +19,7 @@ const audioSessionMode=process.argv[2]||'supported';
 assert(['supported','unsupported','rejected'].includes(audioSessionMode));
 let sessionType='auto',sessionRequests=0;
 const audioSession={get type(){return sessionType},set type(value){sessionRequests++;if(audioSessionMode==='rejected')throw new Error('Audio session unavailable');sessionType=value;}};
-class Param{constructor(){this.value=0}cancelScheduledValues(){}setTargetAtTime(v){this.value=v}}
+class Param{constructor(){this.value=0}cancelScheduledValues(){}setValueAtTime(v){this.value=v;this.instant=true}setTargetAtTime(v){this.value=v}}
 class Node{constructor(type){this.type=type;this.frequency=new Param();this.playbackRate=new Param();this.gain=new Param()}connect(){}start(){}stop(){this.stopped=true}disconnect(){}setPeriodicWave(w){this.wave=w}}
 class Context{
   constructor(){if(audioSessionMode==='supported')assert.equal(sessionType,'playback','Choose music playback before creating the audio context');this.state='running';this.currentTime=0;this.sampleRate=48000;this.destination={};this.osc=[];this.gains=[];this.buffers=[];audio.push(this)}
@@ -41,7 +41,7 @@ const box={async fetch(url){assert.match(url,/^piano-.*\.mp3$/);fetches++;return
   localStorage:{getItem:()=>JSON.stringify({thirdAdded:true,pianoSound:'sampled'}),setItem(){}},
   ResizeObserver:class{observe(){}},matchMedia:()=>({matches:false}),requestAnimationFrame(fn){frame=fn},setInterval:()=>1,clearInterval(){},setTimeout,addEventListener(type,fn){windowEvents[type]=fn}};
 if(audioSessionMode!=='unsupported')box.navigator.audioSession=audioSession;
-box.window=box;vm.createContext(box);
+box.history={pushState(a,b,hash){box.location.hash=hash}};box.window=box;vm.createContext(box);
 vm.runInContext(fs.readFileSync(path.join(root,'music.js'),'utf8'),box);
 const M=box.IntervalleMusic,third=M.intervals.find(i=>i.id==='M3'),fifth=M.intervals.find(i=>i.id==='P5');
 near(M.frequency(69),440);near(M.frequency(60),261.6255653005986);
@@ -127,7 +127,7 @@ const el=id=>els.get(id);
   assert.equal(el('envelopeMiddleLabel').textContent,'Stable');
 
   // Polyphonic piano: real audio routing, independent releases and temperament changes.
-  await el('freeMode').emit('click');
+  await el('tabPiano').emit('click');
   await el('pianoSystem').emit('change','just');
   const keyEvent=(type,key,code,extra={})=>documentEvents[type]({key,code,target:{tagName:'BODY'},preventDefault(){},...extra});
   keyEvent('keydown','q','KeyQ');keyEvent('keydown','d','KeyD');keyEvent('keydown','g','KeyG');
@@ -152,10 +152,10 @@ const el=id=>els.get(id);
   assert(pianoChord[0].stopped&&pianoChord[2].stopped,'Disabling sustain releases latched notes');
   const countBefore=ctx.osc.length;
   keyEvent('keydown','q','KeyQ',{target:{tagName:'INPUT'}});assert.equal(ctx.osc.length,countBefore,'Typing in fields never plays notes');
-  await el('freeOctaves').emit('change','3');await el('pianoOctave').emit('change','5');
+  await el('pianoSpan').emit('change','3');await el('pianoOctave').emit('change','5');
   keyEvent('keydown','k','KeyK');near(ctx.osc.at(-1).frequency.value/ctx.osc[0].frequency.value,8);
   windowEvents.blur();assert(ctx.osc.at(-1).stopped,'Losing focus cannot leave a held key sounding');
-  await el('freeOctaves').emit('change','1');assert.equal(Number(el('pianoOctave').value),5);await el('pianoOctave').emit('change','3');
+  await el('pianoSpan').emit('change','1');assert.equal(Number(el('pianoOctave').value),5);await el('pianoOctave').emit('change','3');
   const touchKey=el('pianoKeys').children.find(b=>Number(b.dataset.semitone)===4);
   await touchKey.emit('pointerdown',undefined,{pointerId:7});assert(ctx.gains.at(-1).gain.value>0);
   await touchKey.emit('pointercancel',undefined,{pointerId:7});assert(ctx.osc.at(-1).stopped);
@@ -171,7 +171,7 @@ const el=id=>els.get(id);
   // Harmonic series: exact integer multiples and independent, click-free gains.
   near(M.harmonic(69,7).frequency,3080);near(M.harmonic(69,7).offset,-31.17409353087553);
   near(M.harmonic(48,11).offset,-48.68205763524301);
-  await el('harmonicsPlay').emit('click');await new Promise(resolve=>setImmediate(resolve));
+  await el('tabHarmonics').emit('click');await el('harmonicsPlay').emit('click');await new Promise(resolve=>setImmediate(resolve));
   const seriesOsc=ctx.osc.slice(-16),seriesGains=ctx.gains.slice(-16);
   near(seriesGains[0].gain.value,.35);
   for(const gain of seriesGains.slice(1))near(gain.gain.value,0);
@@ -192,11 +192,11 @@ const el=id=>els.get(id);
   seriesGains.forEach((g,index)=>assert.equal(g.gain.value>0,index%2===0));
   await el('harmonicsRoot').emit('change','9');near(seriesOsc[0].frequency.value,220);near(seriesOsc[15].frequency.value,3520);
   await el('harmonicsPlay').emit('click');seriesGains.forEach(g=>near(g.gain.value,0));
-  await el('intervalMode').emit('click');await el('play').emit('click');
+  await el('tabIntervals').emit('click');await el('intervalMode').emit('click');await el('play').emit('click');
   assert(ctx.gains[1].gain.value>0);seriesGains.forEach(g=>near(g.gain.value,0));
   await el('play').emit('click');
   // Independent octave and sustain: build a chord across registers without moving the drone.
-  await el('rootNote').emit('change','0');await el('freeMode').emit('click');await el('pianoOctave').emit('change','3');
+  await el('tabPiano').emit('click');await el('pianoRoot').emit('change','0');await el('pianoOctave').emit('change','3');
   await el('pianoSystem').emit('change','equal');
   el('pianoHold').checked=true;await el('pianoHold').emit('change');
   keyEvent('keydown','q','KeyQ');await new Promise(resolve=>setImmediate(resolve));keyEvent('keyup','q','KeyQ');
@@ -208,7 +208,7 @@ const el=id=>els.get(id);
   el('pianoHold').checked=false;await el('pianoHold').emit('change');assert(heldHigh.stopped&&heldLow.stopped);
   await el('pianoOctave').emit('change','1');keyEvent('keydown','d','KeyD');
   near(ctx.osc.at(-1).frequency.value,M.frequency(28));assert.match(el('pianoStatus').textContent,/Mi₁/);
-  assert.match(el('pianoGraphHint').textContent,/hors de la frise/);keyEvent('keyup','d','KeyD');
+  assert.match(el('pianoGraphHint').textContent,/note de départ/);keyEvent('keyup','d','KeyD');
   await el('pianoOctave').emit('change','6');assert(el('pianoOctaveUp').disabled);await el('pianoOctave').emit('change','3');
 
   // MIDI permission is opt-in; physical notes, velocities, independent channels and pedals.
@@ -262,8 +262,9 @@ const el=id=>els.get(id);
   await el('pianoTimbre').emit('change','sine');
 
   // Clickable score, natural fractions and cents recalculated for each tuning.
+  await el('tabHarmonics').emit('click');await el('harmonicsRoot').emit('change','0');
   const scoreNote=n=>el('harmonicsScore').children.find(g=>g.attributes['data-harmonic']===n);
-  await el('harmonicsSolo').emit('click');await scoreNote(7).emit('click');assert.match(el('harmonicsStatus').textContent,/H7/);
+  await el('harmonicsSolo').emit('click');await scoreNote(7).emit('click');await new Promise(resolve=>setImmediate(resolve));assert.match(el('harmonicsStatus').textContent,/H7/);
   for(const [tuning,expected] of [['natural',-31.17409353087553],['equal',0],['just',17.59628786593987],['pythagorean',-3.910001730774837],['meantone',6.843143067582787]]){
     if(tuning==='natural')await el('harmonicsNatural').emit('click');else if(tuning==='equal')await el('harmonicsTempered').emit('click');else await el('harmonicsTuning').emit('change',tuning);
     const ratio=seriesOsc[6].frequency.value/M.frequency(48);
@@ -278,6 +279,7 @@ const el=id=>els.get(id);
   assert.equal(Object.keys(M.systems).length,12);
   for(const [id,thirdCents] of [['werckmeister3',390.225],['werckmeister4',392.18],['kirnberger3',1200*Math.log2(5/4)],['vallotti',392.18],['young2',392.18],['kellner',389.052]])near(M.tunedInterval(third,id).equal,thirdCents);
   for(const parts of [5,6])near(M.tunedInterval(fifth,'meantone'+parts).equal,1200*Math.log2((3/2)*(80/81)**(1/parts)));
+  await el('tabIntervals').emit('click');await el('freeMode').emit('click');
   for(const id of Object.keys(M.systems)){
     const pitches=Array.from({length:13},(_,semi)=>M.keyboardPitch(semi,id).cents);
     near(pitches[0],0);near(pitches[12],1200);pitches.slice(1).forEach((value,index)=>assert(value>pitches[index]));
@@ -285,21 +287,27 @@ const el=id=>els.get(id);
   }
   await el('extraSystem').emit('change','werckmeister3');assert(el('freeRows').children.some(row=>row.children[0].textContent==='Werckmeister III'));
 
-  // Piano + module preserves pitches, independent timbre/level, and module mute.
-  await el('pianoReturn').emit('click');await el('interval').emit('change','M3');await el('tuningSystem').emit('change','equal');
-  await el('pianoAccompaniment').emit('change','module');const moduleHz=ctx.osc[1].frequency.value,moduleWave=ctx.osc[1].wave;
-  keyEvent('keydown','g','KeyG');await new Promise(resolve=>setImmediate(resolve));
-  const mixedNote=ctx.osc.at(-1),mixedGain=ctx.gains.at(-1);
-  near(ctx.osc[1].frequency.value,moduleHz);assert(ctx.gains[1].gain.value>0&&ctx.gains[2].gain.value>0&&mixedGain.gain.value>0);
-  await el('pianoTimbre').emit('change','flute');assert.deepEqual(ctx.osc[1].wave,moduleWave,'Piano timbre cannot change the module');
-  await el('upperToggle').emit('click');near(ctx.gains[2].gain.value,0);assert(mixedGain.gain.value>0,'Module mute does not mute the piano');await el('upperToggle').emit('click');
-  await el('pianoVolume').emit('input',0);near(mixedGain.gain.value,0);assert(ctx.gains[2].gain.value>0);await el('pianoVolume').emit('input',65);
-  await el('centsInput').emit('input','410');assert(!mixedNote.stopped,'Editing the interval in mixed mode keeps the piano');near(ctx.osc[1].frequency.value/M.frequency(48),2**(410/1200));
-  await el('pianoAccompaniment').emit('change','solo');near(ctx.gains[1].gain.value,0);near(ctx.gains[2].gain.value,0);
-  await el('pianoReturn').emit('click');assert(mixedNote.stopped);near(ctx.osc[1].frequency.value/M.frequency(48),2**(410/1200));assert(ctx.gains[1].gain.value>0&&ctx.gains[2].gain.value>0);
+  // Tabs stop continuous voices, latched piano notes and MIDI; each keeps its settings.
+  await el('rootNote').emit('change','2');await el('reference').emit('change','442');await el('centsInput').emit('input','410');
+  await el('play').emit('click');assert(ctx.gains[1].gain.value>0);
+  await el('tabPiano').emit('click');assert(el('intervalles').hidden&&!el('piano').hidden&&el('harmoniques').hidden);
+  assert.equal(el('tabPiano').attributes['aria-selected'],'true');assert.equal(el('playLabel').textContent,'Écouter');
+  ctx.gains.slice(1).forEach(g=>near(g.gain.value,0));
+  await el('pianoRoot').emit('change','7');await el('pianoReference').emit('change','432');await el('pianoSpan').emit('change','2');
+  el('pianoHold').checked=true;await el('pianoHold').emit('change');keyEvent('keydown','q','KeyQ');await new Promise(resolve=>setImmediate(resolve));keyEvent('keyup','q','KeyQ');
+  const tabNote=ctx.osc.at(-1);assert(!tabNote.stopped);
+  box.navigator.requestMIDIAccess=async()=>midiAccess;await el('midiConnect').emit('click');await el('midiInput').emit('change','keyboard-a');
+  midi(0xb0,64,127);midi(0x90,64,127);midi(0x80,64,0);const tabMidi=ctx.osc.at(-1);assert(!tabMidi.stopped);
+  await el('tabHarmonics').emit('click');assert(tabNote.stopped&&tabMidi.stopped);ctx.gains.slice(1).forEach(g=>near(g.gain.value,0));
+  const voiceCount=ctx.osc.length;keyEvent('keydown','d','KeyD');assert.equal(ctx.osc.length,voiceCount,'Typing outside the piano is silent');
+  midi(0xb0,64,127);midi(0x90,60,127);assert.equal(ctx.osc.length,voiceCount,'Hidden MIDI cannot play');
+  await el('tabIntervals').emit('click');assert.equal(Number(el('rootNote').value),2);assert.equal(Number(el('reference').value),442);near(Number(el('centsInput').value),410);
+  await el('tabPiano').emit('click');assert.equal(Number(el('pianoRoot').value),7);assert.equal(Number(el('pianoReference').value),432);assert.equal(Number(el('pianoSpan').value),2);
+  assert.equal(el('playLabel').textContent,'Écouter','Re-entering does not resume audio');
+  await el('tabHarmonics').emit('click');assert.equal(Number(el('harmonicsRoot').value),0);assert.equal(Number(el('harmonicsReference').value),440);
 
   // Additive mixer: actual gain changes, zero mute, displayed amplitudes and A/B/C preservation.
-  await el('harmonicsPlay').emit('click');await el('harmonicsProfile').emit('change','fundamental');
+  await el('harmonicsPlay').emit('click');await new Promise(resolve=>setImmediate(resolve));await el('harmonicsProfile').emit('change','fundamental');
   const fader=n=>el('harmonicLevels').children[n-1].children[1];
   await fader(1).emit('input',50);near(seriesGains[0].gain.value,.175);
   await fader(2).emit('input',25);near(seriesGains[1].gain.value,.0875);near(seriesGains[0].gain.value/seriesGains[1].gain.value,2);
@@ -316,8 +324,31 @@ const el=id=>els.get(id);
   await el('harmonicsProfile').emit('change','organ');near(seriesGains[1].gain.value/seriesGains[0].gain.value,.55);
   await el('harmonicsProfile').emit('change','soft');near(seriesGains[1].gain.value/seriesGains[0].gain.value,.18);near(seriesGains[6].gain.value,0);
   await el('harmonicsGrid').children[6].emit('click');assert(seriesGains[6].gain.value>0,'Clicking a zeroed partial restores a usable level');
+  await el('harmonicsProfile').emit('change','brass');assert(seriesGains[2].gain.value>seriesGains[1].gain.value&&seriesGains[1].gain.value>seriesGains[0].gain.value);assert(seriesGains[3].gain.value<seriesGains[2].gain.value);assert.equal(scoreNote(3).children.find(c=>c.attributes.class==='score-level-value').textContent,'100 %');near(seriesGains.reduce((sum,g)=>sum+g.gain.value,0),.35);
+  await el('harmonicsProfile').emit('change','bowed');assert(seriesGains[15].gain.value/seriesGains[0].gain.value>1/16);assert(seriesGains.every(g=>g.gain.value>0));assert.match(el('harmonicsPresetHint').textContent,/Cordes frottées/);
+  await el('tabPiano').emit('click');await el('tabHarmonics').emit('click');assert.equal(el('harmonicsProfile').value,'bowed');assert.equal(el('playLabel').textContent,'Écouter');
+  await el('harmonicsPlay').emit('click');await new Promise(resolve=>setImmediate(resolve));
+
   await el('harmonicsPlay').emit('click');
-  console.log('PASS — 12 accordages, piano + module indépendant, volumes H1–H16, barres et comparaison Naturel / Égal / choix conservé.');
+  // Keyboard tab navigation, hash links and pending resume races use the same stop path.
+  await el('tabHarmonics').emit('keydown',undefined,{key:'ArrowLeft'});assert(!el('piano').hidden);
+  el('pianoHold').checked=false;await el('pianoHold').emit('change');await el('pianoTimbre').emit('change','sampled');
+  keyEvent('keydown','q','KeyQ');await new Promise(resolve=>setImmediate(resolve));keyEvent('keyup','q','KeyQ');
+  const releaseTail=ctx.gains.at(-1);releaseTail.gain.instant=false;
+  box.location.hash='#intervalles';windowEvents.hashchange();assert(!el('intervalles').hidden);assert(releaseTail.gain.instant,'Sample release tails are muted immediately on exit');
+  await el('interval').emit('change','M3');await el('tuningSystem').emit('change','equal');await el('compare').emit('click');assert.equal(el('compare').attributes['aria-pressed'],'true');
+  await el('tabHarmonics').emit('click');assert.equal(el('compare').attributes['aria-pressed'],'false');assert.equal(el('harmonicsProfile').value,'bowed','Harmonic settings survive a round trip');
+  const resume=Context.prototype.resume,pending=[];Context.prototype.resume=function(){return new Promise(resolve=>pending.push(resolve))};
+  await el('tabPiano').emit('click');await el('pianoTimbre').emit('change','sine');keyEvent('keydown','q','KeyQ');assert(el('play').disabled);
+  await el('tabIntervals').emit('click');assert(!el('play').disabled);const intervalStart=el('play').emit('click');
+  pending.shift()();await new Promise(resolve=>setImmediate(resolve));assert(el('play').disabled,'Stale piano completion cannot clear a newer startup');
+  pending.shift()();await intervalStart;assert.equal(el('playLabel').textContent,'Pause');assert(ctx.gains[1].gain.value>0);
+  await el('tabPiano').emit('click');keyEvent('keydown','q','KeyQ');await el('tabHarmonics').emit('click');
+  pending.shift()();await new Promise(resolve=>setImmediate(resolve));assert.equal(el('playLabel').textContent,'Écouter');ctx.gains.slice(1).forEach(g=>near(g.gain.value,0));
+  Context.prototype.resume=resume;
+  assert(!fs.readFileSync(path.join(root,'index.html'),'utf8').includes('À faire écouter en cours'));
+  console.log('PASS — transitions, réglages séparés, liens directs, clavier, coupure des queues et annulation des démarrages audio en attente.');
+  console.log('PASS — 12 accordages, onglets indépendants, volumes H1–H16, barres et comparaison Naturel / Égal / choix conservé.');
   console.log('PASS — audio session '+audioSessionMode+' ; octave indépendante, sustain entre octaves/focus, MIDI (notes, vélocité, pédales, canaux, connexion/refus), piano enregistré et portée interactive.');
 
   console.log('PASS — série H1 à H16 : fréquences, cents, solo, addition, amplitudes, impaires, fondamentale, arrêt et retour aux intervalles.');

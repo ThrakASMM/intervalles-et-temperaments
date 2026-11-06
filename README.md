@@ -4,15 +4,15 @@ Application pédagogique d’écoute et de visualisation des intervalles, des ac
 
 ## Utilisation
 
-Accès direct au piano : https://thrakasmm.github.io/intervalles-et-temperaments/#piano. Le bouton **Ouvrir le piano**, en haut de page, affiche automatiquement le clavier.
+Accès direct au piano : https://thrakasmm.github.io/intervalles-et-temperaments/#piano. L’onglet **Piano**, en haut de page, affiche le clavier. Les trois onglets **Intervalles**, **Piano** et **Harmoniques** conservent leurs réglages. Changer d’onglet coupe immédiatement toutes les voix, y compris les résonances enregistrées, les notes maintenues et la pédale MIDI, et arrête l’alternance. Aucun son ne reprend automatiquement. Les flèches, Début et Fin permettent de naviguer entre les onglets au clavier.
 
 Cliquer sur **Écouter** en haut. Choisir le bourdon et l’intervalle, ou ouvrir **Libre · frise** pour déplacer la deuxième note sur une à trois octaves.
 
 Sur iPhone/iPad avec iOS/iPadOS 17 ou ultérieur et un navigateur compatible, l’application demande une session musicale `playback` au premier geste de lecture, avant de créer le contexte audio : la sonnerie peut rester coupée. Garder le volume multimédia audible. Les navigateurs sans cette API ou qui refusent le réglage conservent leur comportement habituel ; sur les anciens iPhone, il peut être nécessaire de désactiver le mode silencieux. Ce réglage concerne le bourdon, le piano et les harmoniques. Il ne garantit pas la lecture écran verrouillé. [Explication WebKit](https://bugs.webkit.org/show_bug.cgi?id=237322#c6).
 
 - Douze accordages : égal, juste, pythagoricien, mésotoniques 1/4, 1/5 et 1/6 de comma, Werckmeister III et IV, Kirnberger III (Forkel 1779), Vallotti, Young II et Kellner. [Variantes, données et formules](TUNINGS.md). Un sélecteur ajoute un repère supplémentaire dans la frise.
-- Piano polyphonique sous la frise : souris, multitouch avec glissando, clavier AZERTY ou QWERTY, de une à trois octaves. Sur smartphone : touches agrandies, curseur de déplacement horizontal et mode « Agrandir le piano », utilisable en paysage.
-- Piano seul, avec bourdon ou avec le module d’intervalles ; maintien des notes et douze accordages. En mode combiné, les notes et graphiques du module restent indépendants du piano. Timbre et volume du piano indépendants. « Écouter le module seul » libère le piano et retrouve l’intervalle précédent.
+- Piano polyphonique dans son propre onglet : souris, multitouch avec glissando, clavier AZERTY ou QWERTY, de une à trois octaves. Sur smartphone : touches agrandies, curseur de déplacement horizontal et mode « Agrandir le piano », utilisable en paysage.
+- Piano seul ou avec son propre bourdon ; maintien des notes et douze accordages. Note de départ, diapason, étendue et bourdon indépendants du module Intervalles. Timbre et volume du piano indépendants.
 - Série harmonique H1 à H16 : sinusoïdes seules ou additionnées, amplitudes égales ou décroissantes, fréquences exactes et écarts aux notes tempérées. Portée interactive : notes cliquables, fractions naturelles et fractions réduites dans l’octave, cents recalculés selon la série naturelle ou les douze accordages fixes. La référence des écarts est toujours le tempérament égal. Accès direct : https://thrakasmm.github.io/intervalles-et-temperaments/#harmoniques.
 - Quatre timbres synthétiques, volume et sourdine pour chaque voix.
 - Deux voix par défaut, troisième note dans Options avancées.
@@ -21,13 +21,13 @@ Sur iPhone/iPad avec iOS/iPadOS 17 ou ultérieur et un navigateur compatible, l�
 - Trois vues scientifiques : **Enveloppe**, **Cercle de phase**, **Lissajous**.
 - Pulsation lumineuse des battements, temps réel ou ralenti visuel.
 
-Le piano démarre au premier appui. Les lettres affichées couvrent la première octave du clavier visible. **−1 octave / +1 octave** ou le sélecteur déplacent le piano indépendamment du bourdon, entre les octaves de départ 1 et 6. L’étendue visible suit celle de la frise. Les notes maintenues restent audibles entre octaves et lors des changements de focus. Avec « Maintenir les notes », recliquer une touche allumée (ou retaper sa lettre) coupe cette note seule ; les autres continuent. Les touches MIDI conservent le comportement habituel d’une pédale. Relâcher « Maintenir les notes » coupe les notes relâchées, en tenant compte d’une éventuelle pédale MIDI. Échap arrête tout, et « Tout relâcher » libère les notes maintenues.
+Le piano démarre au premier appui. Les lettres affichées couvrent la première octave du clavier visible. **−1 octave / +1 octave** ou le sélecteur déplacent le piano indépendamment du bourdon, entre les octaves de départ 1 et 6. Le sélecteur **Étendue du clavier** règle une à trois octaves, indépendamment de la frise. Les notes maintenues restent audibles entre octaves et lors des changements de focus. Avec « Maintenir les notes », recliquer une touche allumée (ou retaper sa lettre) coupe cette note seule ; les autres continuent. Les touches MIDI conservent le comportement habituel d’une pédale. Relâcher « Maintenir les notes » coupe les notes relâchées, en tenant compte d’une éventuelle pédale MIDI. Échap arrête tout, et « Tout relâcher » libère les notes maintenues.
 
-En mode Piano seul ou Piano + bourdon, les graphiques suivent la dernière note située dans la frise, pas l’accord complet. En mode Piano + module d’intervalles, ils conservent les notes du premier module. Une note plus grave ou plus aiguë reste jouable ; un message indique alors que les graphiques gardent la dernière note de la frise.
+Les graphiques appartiennent à l’onglet Intervalles. Le piano affiche les cents de chaque touche par rapport à sa propre note de départ.
 
 ### Construire un timbre sur la portée
 
-Seize curseurs règlent les amplitudes H1–H16, de 0 à 100 %, directement sous les notes. La portée affiche les niveaux des partiels actifs. Un réglage manuel active la superposition et le partiel concerné ; 0 % le coupe. Le bouton **Superposer les harmoniques** affiche clairement son état. Les presets **Sinusoïde**, **Flûte**, **Clarinette**, **Orgue**, **Brillant (1/n)** et **Amplitudes égales** donnent des points de départ modifiables. Ce sont des modèles de synthèse additive, pas des enregistrements d’instruments.
+Seize curseurs règlent les amplitudes H1–H16, de 0 à 100 %, directement sous les notes. La portée affiche les niveaux des partiels actifs. Un réglage manuel active la superposition et le partiel concerné ; 0 % le coupe. Le bouton **Superposer les harmoniques** affiche clairement son état. Les presets **Sinusoïde**, **Flûte**, **Clarinette**, **Orgue**, **Cuivres**, **Cordes frottées**, **Brillant (1/n)** et **Amplitudes égales** donnent des points de départ modifiables. Ce sont des modèles de synthèse additive, pas des enregistrements d’instruments. Cuivres : amplitudes `(n/3) × exp(1 − n/3)` (maximum à H3). Cordes frottées : `1/n^0,7`, décroissance lente jusqu’à H16. Ces courbes illustratives sont choisies pour comparer deux profils, sans prétendre reproduire un instrument mesuré. L’attaque, le souffle, le frottement et leur évolution ne sont pas simulés. [Spectre et limites de l’identification d’un timbre — UNSW](https://phys.unsw.edu.au/music/sound.spectrum.html).
 
 Les boutons **Naturel**, **Égal** et **l’accordage choisi** conservent la sélection et les amplitudes pendant la comparaison. Le sélecteur du troisième accordage reste sur son choix lorsque les deux autres boutons sont utilisés. Les niveaux sont relatifs : lorsque la somme dépasse 1, le moteur compense le niveau global pour conserver une marge audio. Baisser une harmonique isolée diminue bien son amplitude.
 
@@ -51,7 +51,7 @@ Pour l’utiliser localement, ouvrir `index.html` ou servir ce dossier avec un s
 
 ## Vérification
 
-`node verify.cjs` vérifie les calculs, le routage audio, la polyphonie, les relâchements, le maintien et les changements d’accordage, les octaves indépendantes, le sustain entre octaves, les événements MIDI simulés, les sources audio échantillonnées et la portée interactive.
+`node verify.cjs` vérifie les transitions entre onglets, les réglages indépendants, l’annulation des démarrages audio en attente, la coupure immédiate des résonances, les calculs, le routage audio, la polyphonie, les relâchements, le maintien et les changements d’accordage, les octaves indépendantes, le sustain entre octaves, les événements MIDI simulés, les sources audio échantillonnées et la portée interactive.
 
 `node verify.cjs unsupported` et `node verify.cjs rejected` vérifient aussi que la lecture reste fonctionnelle si l’API Audio Session est absente ou refuse le réglage. Le commutateur silencieux doit être vérifié sur un iPhone physique.
 
