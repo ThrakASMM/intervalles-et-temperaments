@@ -36,7 +36,7 @@ const midiA={id:'keyboard-a',name:'Clavier test A',state:'connected',async open(
 const midiB={id:'keyboard-b',name:'Clavier test B',state:'connected',async open(){},async close(){}};
 const midiAccess={inputs:new Map([['keyboard-a',midiA],['keyboard-b',midiB]])};
 let midiRequests=0,fetches=0;
-const box={async fetch(url){assert.match(url,/^piano-.*\.mp3$/);fetches++;return {ok:true,async arrayBuffer(){return new ArrayBuffer(16)}};},navigator:{async requestMIDIAccess(options){assert.equal(options.sysex,false);midiRequests++;return midiAccess;}},location:{hash:''},console,Float32Array,AudioContext:Context,devicePixelRatio:1,
+const box={async fetch(url){assert.match(url,/^(piano-.*\.mp3|reference-(trumpet|violin|flute|clarinet)\.wav)$/);if(url.startsWith('piano-'))fetches++;return {ok:true,async arrayBuffer(){return new ArrayBuffer(16)}};},navigator:{async requestMIDIAccess(options){assert.equal(options.sysex,false);midiRequests++;return midiAccess;}},location:{hash:''},console,Float32Array,AudioContext:Context,devicePixelRatio:1,
   document:{getElementById:id=>{assert(els.has(id),'Missing DOM id: '+id);return els.get(id)},createElement:element,createElementNS:element,body:element(),activeElement:null,addEventListener(type,fn){documentEvents[type]=fn}},
   localStorage:{getItem:()=>JSON.stringify({thirdAdded:true,pianoSound:'sampled'}),setItem(){}},
   ResizeObserver:class{observe(){}},matchMedia:()=>({matches:false}),requestAnimationFrame(fn){frame=fn},setInterval:()=>1,clearInterval(){},setTimeout,addEventListener(type,fn){windowEvents[type]=fn}};
@@ -69,6 +69,8 @@ assert(Math.abs(M.lissajousPoint(4,5.04,1).y)>.1,'A detuned trace does not close
 const extended=M.extendInterval(M.tunedInterval(third,'equal'),2,'equal');
 near(extended.pure,2786.313713864835);near(extended.n/extended.d,5);
 for(const mode of Object.keys(M.systems))for(const i of M.intervals){const t=M.tunedInterval(i,mode);assert(t.equal>=-1e-10&&t.equal<=1200);near(M.transpose(200,i.pure),200*i.n/i.d)}
+vm.runInContext(fs.readFileSync(path.join(root,'harmonic-references.js'),'utf8'),box);
+const refs=box.HarmonicReferences;
 vm.runInContext(fs.readFileSync(path.join(root,'app.js'),'utf8'),box);
 assert.equal(sessionRequests,0,'Opening the page does not take over the device audio session');
 const el=id=>els.get(id);
@@ -324,9 +326,31 @@ const el=id=>els.get(id);
   await el('harmonicsProfile').emit('change','organ');near(seriesGains[1].gain.value/seriesGains[0].gain.value,.55);
   await el('harmonicsProfile').emit('change','soft');near(seriesGains[1].gain.value/seriesGains[0].gain.value,.18);near(seriesGains[6].gain.value,0);
   await el('harmonicsGrid').children[6].emit('click');assert(seriesGains[6].gain.value>0,'Clicking a zeroed partial restores a usable level');
-  await el('harmonicsProfile').emit('change','brass');assert(seriesGains[2].gain.value>seriesGains[1].gain.value&&seriesGains[1].gain.value>seriesGains[0].gain.value);assert(seriesGains[3].gain.value<seriesGains[2].gain.value);assert.equal(scoreNote(3).children.find(c=>c.attributes.class==='score-level-value').textContent,'100 %');near(seriesGains.reduce((sum,g)=>sum+g.gain.value,0),.35);
-  await el('harmonicsProfile').emit('change','bowed');assert(seriesGains[15].gain.value/seriesGains[0].gain.value>1/16);assert(seriesGains.every(g=>g.gain.value>0));assert.match(el('harmonicsPresetHint').textContent,/Cordes frottées/);
-  await el('tabPiano').emit('click');await el('tabHarmonics').emit('click');assert.equal(el('harmonicsProfile').value,'bowed');assert.equal(el('playLabel').textContent,'Écouter');
+  // Measured files, safe levels and original/reconstruction routing.
+  const tick=()=>new Promise(resolve=>setImmediate(resolve));
+  for(const [id,ref] of Object.entries(refs)){
+    assert.equal(ref.levels.length,16);assert.equal(Math.max(...ref.levels),1);assert(ref.levels.every(v=>v>=0&&v<=1));
+    assert(ref.fundamental>250&&ref.fundamental<275);assert(ref.analysisEnd<ref.duration);assert(ref.frameCount>=5);
+    const wav=fs.readFileSync(path.join(root,ref.file));assert.equal(wav.toString('ascii',0,4),'RIFF');
+    assert.equal(require('node:crypto').createHash('sha256').update(wav).digest('hex'),ref.wavSha256);
+    const rms=.35*Math.sqrt(ref.levels.reduce((a,v)=>a+v*v,0)/2)/Math.max(1,ref.levels.reduce((a,v)=>a+v,0));
+    assert(Math.abs(ref.playbackGain*ref.steadyRms-rms)<.000002,'The comparison matches steady RMS levels');
+    await el('harmonicsProfile').emit('change',id);assert.equal(Number(el('harmonicsOctave').value),4);assert(!el('recordingControls').hidden);
+    ref.levels.forEach((v,i)=>near(Number(fader(i+1).value),v*100));
+  }
+  await el('harmonicsProfile').emit('change','trumpet');await el('recordingOriginal').emit('click');await tick();
+  const original=ctx.buffers.at(-1),originalGain=ctx.gains.at(-1);assert(!original.stopped);assert(originalGain.gain.value>0);
+  near(original.playbackRate.value,M.frequency(60)/refs.trumpet.fundamental);seriesGains.forEach(g=>near(g.gain.value,0));
+  assert.equal(el('recordingOriginal').attributes['aria-pressed'],'true');assert.match(el('recordingStatus').textContent,/Enregistrement original/);
+  await el('recordingReconstruction').emit('click');await tick();assert(original.stopped);assert(seriesGains.some(g=>g.gain.value>0));
+  const denominator=refs.trumpet.levels.reduce((a,v)=>a+v,0);refs.trumpet.levels.forEach((v,i)=>near(seriesGains[i].gain.value,.35*v/denominator));
+  await el('recordingOriginal').emit('click');await tick();const original2=ctx.buffers.at(-1);
+  await fader(1).emit('input','12.3');assert(original2.stopped);assert.equal(el('harmonicsProfile').value,'custom');assert.equal(el('recordingReconstruction').attributes['aria-pressed'],'true');assert(!el('recordingControls').hidden);
+  await el('recordingRestore').emit('click');near(Number(fader(1).value),refs.trumpet.levels[0]*100);
+  await el('recordingOriginal').emit('click');await tick();const original3=ctx.buffers.at(-1);await el('tabPiano').emit('click');assert(original3.stopped);assert.equal(el('playLabel').textContent,'Écouter');
+  await el('tabHarmonics').emit('click');await el('recordingOriginal').emit('click');await tick();ctx.buffers.at(-1).onended();assert.equal(el('playLabel').textContent,'Écouter','End of recording releases playback status');
+  await el('harmonicsProfile').emit('change','violin');await el('recordingReconstruction').emit('click');await tick();
+  await el('tabPiano').emit('click');await el('tabHarmonics').emit('click');assert.equal(el('harmonicsProfile').value,'violin');assert.equal(el('playLabel').textContent,'Écouter');
   await el('harmonicsPlay').emit('click');await new Promise(resolve=>setImmediate(resolve));
 
   await el('harmonicsPlay').emit('click');
@@ -337,7 +361,7 @@ const el=id=>els.get(id);
   const releaseTail=ctx.gains.at(-1);releaseTail.gain.instant=false;
   box.location.hash='#intervalles';windowEvents.hashchange();assert(!el('intervalles').hidden);assert(releaseTail.gain.instant,'Sample release tails are muted immediately on exit');
   await el('interval').emit('change','M3');await el('tuningSystem').emit('change','equal');await el('compare').emit('click');assert.equal(el('compare').attributes['aria-pressed'],'true');
-  await el('tabHarmonics').emit('click');assert.equal(el('compare').attributes['aria-pressed'],'false');assert.equal(el('harmonicsProfile').value,'bowed','Harmonic settings survive a round trip');
+  await el('tabHarmonics').emit('click');assert.equal(el('compare').attributes['aria-pressed'],'false');assert.equal(el('harmonicsProfile').value,'violin','Harmonic settings survive a round trip');
   const resume=Context.prototype.resume,pending=[];Context.prototype.resume=function(){return new Promise(resolve=>pending.push(resolve))};
   await el('tabPiano').emit('click');await el('pianoTimbre').emit('change','sine');keyEvent('keydown','q','KeyQ');assert(el('play').disabled);
   await el('tabIntervals').emit('click');assert(!el('play').disabled);const intervalStart=el('play').emit('click');
@@ -346,6 +370,16 @@ const el=id=>els.get(id);
   await el('tabPiano').emit('click');keyEvent('keydown','q','KeyQ');await el('tabHarmonics').emit('click');
   pending.shift()();await new Promise(resolve=>setImmediate(resolve));assert.equal(el('playLabel').textContent,'Écouter');ctx.gains.slice(1).forEach(g=>near(g.gain.value,0));
   Context.prototype.resume=resume;
+  // An original still downloading cannot start after leaving its tab, and a failed load is retryable.
+  await el('harmonicsProfile').emit('change','flute');
+  const nativeFetch=box.fetch;let finishDownload;box.fetch=()=>new Promise(resolve=>{finishDownload=resolve});
+  await el('recordingOriginal').emit('click');await tick();assert.match(el('recordingStatus').textContent,/Chargement/);const beforeDownload=ctx.buffers.length;
+  await el('tabIntervals').emit('click');finishDownload({ok:true,async arrayBuffer(){return new ArrayBuffer(16)}});await tick();assert.equal(ctx.buffers.length,beforeDownload);assert.equal(el('playLabel').textContent,'Écouter');
+  await el('tabHarmonics').emit('click');await el('harmonicsProfile').emit('change','clarinet');box.fetch=async()=>({ok:false});
+  await el('recordingOriginal').emit('click');await tick();assert(!el('audioError').hidden);assert.equal(el('playLabel').textContent,'Écouter');
+  box.fetch=nativeFetch;await el('recordingOriginal').emit('click');await tick();assert(el('audioError').hidden);assert.equal(el('playLabel').textContent,'Pause');await el('play').emit('click');
+  console.log('PASS — quatre spectres mesurés, fichiers vérifiés, comparaison A/B exclusive, hauteurs et niveaux appariés, curseurs, rétablissement, fin de fichier et chargements annulés.');
+
   assert(!fs.readFileSync(path.join(root,'index.html'),'utf8').includes('À faire écouter en cours'));
   console.log('PASS — transitions, réglages séparés, liens directs, clavier, coupure des queues et annulation des démarrages audio en attente.');
   console.log('PASS — 12 accordages, onglets indépendants, volumes H1–H16, barres et comparaison Naturel / Égal / choix conservé.');

@@ -77,17 +77,19 @@
   let midiAccess=null,midiInput=null,midiBusy=false,midiEnabled=false,midiPreferred='',midiGeneration=0;
   const midiPedals=new Set();
   let seriesEngaged=false,seriesMode='solo',seriesProfile='falling',seriesTuning='natural',seriesComparison='pythagorean',seriesNodes=null;
-  // Illustrative spectra, not measured instrument samples: see README references.
+  const instrumentReferences=globalThis.HarmonicReferences;
+  let referenceId=null,seriesListening='synthesis',referenceVoice=null,referenceLoading=false,referenceRequest=0;
+  const referenceBuffers=new Map();
+  // Theoretical spectra are explicitly separated from measured recordings.
   const seriesProfiles={
     falling:{level:n=>1/n,hint:'Dent de scie : toutes les harmoniques, avec une amplitude de 1/n.'},
     equal:{level:()=>1,hint:'Même amplitude pour les seize harmoniques.'},
-    odd:{level:n=>n%2?1/n:0,hint:'Clarinette : un modèle à harmoniques impaires, inspiré du registre grave.'},
-    soft:{level:n=>M.timbres.flute[n]||0,hint:'Flûte : une fondamentale dominante et quelques harmoniques douces.'},
+    odd:{level:n=>n%2?1/n:0,hint:'Modèle théorique : seules les harmoniques impaires sont présentes, avec une amplitude de 1/n.'},
+    soft:{level:n=>M.timbres.flute[n]||0,hint:'Spectre synthétique doux : une fondamentale dominante et quelques harmoniques.'},
     organ:{level:n=>M.timbres.organ[n]||0,hint:'Orgue : une fondamentale soutenue avec plusieurs harmoniques décroissantes.'},
-    brass:{level:n=>(n/3)*Math.exp(1-n/3),hint:'Cuivres : les amplitudes montent jusqu’à H3, puis diminuent. Comparez cette bosse au profil des cordes.'},
-    bowed:{level:n=>1/n**.7,hint:'Cordes frottées : les amplitudes diminuent lentement ; les harmoniques aiguës restent présentes.'},
     fundamental:{level:n=>n===1?1:0,hint:'Sinusoïde : la fondamentale seule, sans harmonique supérieure.'}
   };
+  for(const [id,ref] of Object.entries(instrumentReferences))seriesProfiles[id]={reference:id,level:n=>ref.levels[n-1],hint:ref.name+' : spectre mesuré sur '+ref.note+', '+ref.technique+'. Les curseurs reprennent ces amplitudes.'};
   const seriesLevels=Array.from({length:16},(_,i)=>1/(i+1)),harmonicFaders=[];
   const selectedHarmonics=new Set([1]),harmonicButtons=[];
   const heldNotes=new Map(),sustainedNotes=new Map(),pianoVoices=new Map(),pianoButtons=new Map();
@@ -136,6 +138,7 @@
     }
     updatePianoAudio();
     updateSeriesAudio();
+    if(referenceVoice){smooth(referenceVoice.osc.playbackRate,f0()/instrumentReferences[referenceId].fundamental);}
     smooth(master.gain,state.masterVolume/100,.025);
   }
   async function initAudio(){
@@ -157,12 +160,13 @@
         applyTimbre(voices[key],state[key+'Timbre']);
         osc.frequency.value=key==='drone'?f0():M.transpose(f0(),key==='third'?state.thirdCents:state.cents);osc.start();
       }
-      ctx.addEventListener('statechange',()=>{if(ctx.state!=='running'&&playing){playing=false;clearPiano();stopCompare();updateAudio();renderTransport();renderPianoState();}});
+      ctx.addEventListener('statechange',()=>{if(ctx.state!=='running'&&playing){playing=false;cancelOriginal();clearPiano();stopCompare();updateAudio();renderTransport();renderPianoState();}});
     }
     await ctx.resume();
     if(ctx.state!=='running')throw new Error('Le son est en pause dans le navigateur. Cliquez de nouveau sur « Écouter ».');
   }
   async function start(){
+    if(activeSection==='harmoniques'&&seriesListening==='original'&&referenceId)return startOriginal();
     if(starting)return false;
     const sequence=++startSequence;
     pianoEngaged=activeSection==='piano';seriesEngaged=activeSection==='harmoniques';
@@ -171,7 +175,7 @@
     catch(error){if(sequence!==startSequence)return false;playing=false;$('audioError').textContent=error.message||'Impossible de démarrer le son. Rechargez la page pour réessayer.';$('audioError').hidden=false;renderTransport();return false;}
     finally{if(sequence===startSequence){starting=false;$('play').disabled=false;}}
   }
-  function stop(){startSequence++;starting=false;$('play').disabled=false;playing=false;stopCompare();clearPiano();updateAudio();renderTransport();renderPianoState();}
+  function stop(){cancelOriginal();startSequence++;starting=false;$('play').disabled=false;playing=false;stopCompare();clearPiano();updateAudio();renderTransport();renderPianoState();}
   function stopCompare(){
     if(compareTimer)clearInterval(compareTimer);
     compareTimer=null;$('compare').setAttribute('aria-pressed','false');$('compareLabel').textContent='Alterner pur / '+M.systems[state.system].short;$('compareHint').textContent='Toutes les 2,5 secondes';
@@ -192,7 +196,7 @@
     $('statusDot').classList.toggle('active',playing);
     const audible=state.masterVolume>0&&(voiceKeys.some(key=>voiceActive(key)&&state[key+'Volume']>0)||(pianoEngaged&&activePianoNotes().size&&state.pianoVolume>0));
     const pianoRoute={solo:'Piano seul',drone:'Piano + bourdon'};
-    $('statusText').textContent=playing?(seriesEngaged?(state.masterVolume&&selectedHarmonics.size?'Série harmonique en cours':'Série harmonique en sourdine'):pianoEngaged?pianoRoute[state.pianoAccompaniment]:audible?'Écoute en cours':'Voix en sourdine'):'Prêt à écouter';
+    $('statusText').textContent=playing?(seriesEngaged?(seriesListening==='original'?'Enregistrement original en cours':state.masterVolume&&selectedHarmonics.size?'Reconstruction / série harmonique en cours':'Série harmonique en sourdine'):pianoEngaged?pianoRoute[state.pianoAccompaniment]:audible?'Écoute en cours':'Voix en sourdine'):'Prêt à écouter';
     renderVisualInfo();
     renderSeries();
   }
@@ -558,7 +562,7 @@
       const level=selected?seriesLevels[index]:0,barHeight=60*level;
       group.append(svgElement('rect',{x:x-13,y:bottom+102,width:26,height:60,rx:3,class:'score-level-track'}));
       group.append(svgElement('rect',{x:x-13,y:bottom+162-barHeight,width:26,height:barHeight,rx:3,class:'score-level-bar'}));
-      group.append(svgElement('text',{x,y:bottom+180,'text-anchor':'middle',class:'score-level-value'},format(level*100,0)+' %'));
+      group.append(svgElement('text',{x,y:bottom+180,'text-anchor':'middle',class:'score-level-value'},format(level*100,level>0&&level<.1?1:0)+' %'));
       group.addEventListener('click',()=>selectHarmonic(n));
       group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectHarmonic(n);}});
       score.append(group);
@@ -566,6 +570,62 @@
     });
     $('scoreOctaveHint').textContent=transposeOctaves?(transposeOctaves===1?'Portée en 8va : les sons sont une octave plus haut.':'Portée en 15ma : les sons sont deux octaves plus haut.')+' Les noms indiquent les hauteurs réellement jouées.':'Les noms et la portée indiquent les hauteurs réellement jouées.';
   }
+
+  function cancelOriginal(){
+    referenceRequest++;referenceLoading=false;
+    if(referenceVoice){const voice=referenceVoice;referenceVoice=null;voice.gain.gain.cancelScheduledValues(ctx.currentTime);voice.gain.gain.setValueAtTime(0,ctx.currentTime);try{voice.osc.stop();}catch{}voice.osc.disconnect();voice.gain.disconnect();}
+  }
+  function useReconstruction(){
+    if(referenceLoading){startSequence++;starting=false;$('play').disabled=false;}
+    cancelOriginal();seriesListening='synthesis';
+  }
+  async function loadReference(id){
+    if(referenceBuffers.has(id))return referenceBuffers.get(id);
+    const response=await fetch(instrumentReferences[id].file);
+    if(!response.ok)throw new Error('L’enregistrement ne s’est pas chargé. Réessayez avec une connexion internet.');
+    const buffer=await ctx.decodeAudioData(await response.arrayBuffer());referenceBuffers.set(id,buffer);return buffer;
+  }
+  async function startOriginal(){
+    if(activeSection!=='harmoniques'||!referenceId)return false;
+    stop();seriesListening='original';seriesEngaged=true;pianoEngaged=false;
+    const id=referenceId,sequence=++startSequence,request=++referenceRequest,epoch=sectionEpoch;
+    const current=()=>sequence===startSequence&&request===referenceRequest&&epoch===sectionEpoch&&id===referenceId;
+    referenceLoading=true;starting=true;$('play').disabled=true;$('audioError').hidden=true;renderSeries();
+    try{
+      await initAudio();if(!current())return false;
+      const buffer=await loadReference(id);if(!current())return false;
+      const ref=instrumentReferences[id],osc=ctx.createBufferSource(),gain=ctx.createGain();
+      osc.buffer=buffer;osc.playbackRate.value=f0()/ref.fundamental;gain.gain.value=ref.playbackGain;
+      osc.connect(gain);gain.connect(master);const voice={osc,gain};referenceVoice=voice;
+      osc.onended=()=>{gain.gain.value=0;osc.disconnect();gain.disconnect();if(referenceVoice!==voice)return;referenceVoice=null;playing=false;renderTransport();renderPianoState();};
+      playing=true;updateAudio();osc.start();renderTransport();return true;
+    }catch(error){if(!current())return false;playing=false;$('audioError').textContent=error.message||'Impossible de lire cet enregistrement.';$('audioError').hidden=false;renderTransport();return false;}
+    finally{if(current()){starting=false;referenceLoading=false;$('play').disabled=false;renderSeries();}}
+  }
+  function applySeriesProfile(id,{resetPitch=true}={}){
+    const profile=seriesProfiles[id];if(!profile&&id!=='custom')return;
+    useReconstruction();seriesProfile=id;
+    if(profile){
+      referenceId=profile.reference||null;
+      if(referenceId&&resetPitch){const ref=instrumentReferences[referenceId];state.root=ref.midi%12;state.octave=Math.floor(ref.midi/12)-1;state.reference=440;seriesTuning='natural';}
+      for(let n=1;n<=16;n++)seriesLevels[n-1]=profile.level(n);
+      seriesMode='sum';selectedHarmonics.clear();seriesLevels.forEach((level,index)=>{if(level>0)selectedHarmonics.add(index+1);});
+    }
+    updateAudio();render();save();
+  }
+  function renderRecording(){
+    const ref=instrumentReferences[referenceId];$('recordingControls').hidden=!ref;
+    if(!ref){$('recordingDescription').textContent='Choisissez un instrument dans « Presets de timbre » pour comparer sa note enregistrée avec les seize harmoniques mesurées.';return;}
+    $('recordingDescription').textContent=ref.name+' · '+ref.note+' · '+ref.technique+' — '+ref.performer+'. Amplitudes mesurées sur '+format(ref.analysisStart,2)+' à '+format(ref.analysisEnd,2)+' s de cet extrait.';
+    $('recordingSource').href=ref.page;
+    const original=seriesListening==='original',active=playing&&seriesEngaged;
+    $('recordingOriginal').setAttribute('aria-pressed',String(original));$('recordingReconstruction').setAttribute('aria-pressed',String(!original));
+    $('recordingStatus').textContent=referenceLoading?'Chargement de l’enregistrement…':active?(original?'A · Enregistrement original':'B · Reconstruction avec les niveaux affichés'):'Écoute arrêtée · choisissez A ou B.';
+    $('recordingPitch').textContent='Hauteur commune : '+M.noteName(rootMidi())+' · '+format(f0())+' Hz. Original mesuré : '+format(ref.fundamental)+' Hz. L’enregistrement est recalé en hauteur ; sa durée change si vous le transposez.';
+  }
+  $('recordingOriginal').addEventListener('click',()=>void startOriginal());
+  $('recordingReconstruction').addEventListener('click',()=>void startSeries());
+  $('recordingRestore').addEventListener('click',()=>{if(referenceId)applySeriesProfile(referenceId,{resetPitch:false});});
 
   function updateSeriesAudio(){
     if(seriesEngaged&&!seriesNodes){
@@ -583,11 +643,12 @@
     seriesNodes.forEach((voice,index)=>{
       const n=index+1,h=seriesPitch(n),freq=h.heard;
       smooth(voice.osc.frequency,freq);
-      smooth(voice.gain.gain,playing&&seriesEngaged&&selectedHarmonics.has(n)&&freq<ctx.sampleRate/2?.35*amplitude(n)/total:0,.025);
+      smooth(voice.gain.gain,playing&&seriesEngaged&&seriesListening==='synthesis'&&selectedHarmonics.has(n)&&freq<ctx.sampleRate/2?.35*amplitude(n)/total:0,.025);
     });
   }
   function renderSeries(){
-    $('harmonicsPresetHint').textContent=seriesProfiles[seriesProfile]?.hint||'Personnalisé : ajustez chaque harmonique sous la portée pour construire votre timbre.';
+    renderRecording();
+    $('harmonicsPresetHint').textContent=seriesProfiles[seriesProfile]?.hint||(referenceId?'Personnalisé à partir du spectre mesuré : '+instrumentReferences[referenceId].name+'.':'Personnalisé : ajustez chaque harmonique sous la portée pour construire votre timbre.');
     $('harmonicsReference').value=state.reference;$('harmonicsRoot').value=state.root;$('harmonicsOctave').value=state.octave;$('harmonicsProfile').value=seriesProfile;
     $('harmonicsBase').textContent=M.noteName(rootMidi())+' · '+format(f0())+' Hz';
     $('harmonicsFormula').textContent=seriesTuning==='natural'?'fₙ = n × f₁':'f = f₁ × 2^(cents/1 200)';
@@ -608,7 +669,7 @@
       item.button.setAttribute('aria-pressed',String(selectedHarmonics.has(n)));
       item.button.setAttribute('aria-label','H'+n+', '+h.note+', entendue '+format(h.heard)+' hertz, tempérée '+format(h.equalFrequency)+' hertz, '+offset);
       item.button.style.setProperty('--partial-height',(seriesLevels[n-1]*100)+'%');
-      const fader=harmonicFaders[n-1];fader.input.value=seriesLevels[n-1]*100;fader.output.textContent=format(seriesLevels[n-1]*100,0)+' %';fader.label.classList.toggle('active',selectedHarmonics.has(n));
+      const fader=harmonicFaders[n-1];fader.input.value=seriesLevels[n-1]*100;fader.output.textContent=format(seriesLevels[n-1]*100,seriesLevels[n-1]>0&&seriesLevels[n-1]<.1?1:0)+' %';fader.label.classList.toggle('active',selectedHarmonics.has(n));
       item.note.textContent=h.note;item.frequency.textContent=seriesTuning==='natural'?n+' × '+format(f0())+' ≈ '+format(h.heard)+' Hz':'Entendue : '+format(h.heard)+' Hz';
       item.fraction.textContent='Naturel : '+n+'/1 · octave : '+harmonicFraction(n);
       item.tempered.textContent='Tempérée : '+format(h.equalFrequency)+' Hz';
@@ -618,11 +679,11 @@
     const active=playing&&seriesEngaged;
     $('harmonicsPlay').setAttribute('aria-pressed',String(active));$('harmonicsPlay').textContent=active?'Ⅱ Pause':'▶ Écouter la série';
     const selected=[...selectedHarmonics].sort((a,b)=>a-b);
-    $('harmonicsStatus').textContent=selected.length?(active?'À l’écoute : ':'Sélection : ')+selected.map(n=>'H'+n).join(' + ')+' · '+seriesTunings[seriesTuning]+(state.masterVolume===0?' · volume général à zéro':''):'Aucune harmonique sélectionnée · cliquez sur une case.';
+    $('harmonicsStatus').textContent=active&&seriesListening==='original'?'Enregistrement : '+instrumentReferences[referenceId].name+' · les curseurs agissent sur la reconstruction.':selected.length?(active?'À l’écoute : ':'Sélection : ')+selected.map(n=>'H'+n).join(' + ')+' · '+seriesTunings[seriesTuning]+(state.masterVolume===0?' · volume général à zéro':''):'Aucune harmonique sélectionnée · cliquez sur une case.';
   }
   async function startSeries(){
     if(activeSection!=='harmoniques')return;
-    clearPiano(true);stopCompare();seriesEngaged=true;renderSeries();
+    useReconstruction();clearPiano(true);stopCompare();seriesEngaged=true;renderSeries();
     if(!playing)await start();else{updateAudio();renderTransport();}
     renderPianoState();renderSeries();
   }
@@ -638,25 +699,20 @@
     button.addEventListener('click',()=>selectHarmonic(n));
     const label=document.createElement('label');label.className='harmonic-fader';
     const title=document.createElement('span');title.textContent='H'+n;
-    const input=document.createElement('input');input.type='range';input.min=0;input.max=100;input.step=1;input.id='harmonicLevel'+n;input.setAttribute('aria-label','Volume de H'+n);
+    const input=document.createElement('input');input.type='range';input.min=0;input.max=100;input.step=.1;input.id='harmonicLevel'+n;input.setAttribute('aria-label','Volume de H'+n);
     const output=document.createElement('output');output.setAttribute('for',input.id);label.append(title,input,output);$('harmonicLevels').append(label);harmonicFaders.push({label,input,output});
-    input.addEventListener('input',e=>{seriesLevels[n-1]=Math.max(0,Math.min(100,Number(e.target.value)))/100;seriesProfile='custom';seriesMode='sum';if(seriesLevels[n-1]>0)selectedHarmonics.add(n);else selectedHarmonics.delete(n);updateAudio();renderSeries();});
+    input.addEventListener('input',e=>{useReconstruction();seriesLevels[n-1]=Math.max(0,Math.min(100,Number(e.target.value)))/100;seriesProfile='custom';seriesMode='sum';if(seriesLevels[n-1]>0)selectedHarmonics.add(n);else selectedHarmonics.delete(n);updateAudio();renderSeries();});
   }
   $('harmonicsPlay').addEventListener('click',()=>{if(playing&&seriesEngaged)stop();else void startSeries();});
   for(const [id,mode] of [['harmonicsSolo','solo'],['harmonicsSum','sum']])$(id).addEventListener('click',()=>{
-    seriesMode=mode;
+    useReconstruction();seriesMode=mode;
     if(mode==='solo'&&selectedHarmonics.size!==1){const first=[...selectedHarmonics].sort((a,b)=>a-b)[0]||1;selectedHarmonics.clear();selectedHarmonics.add(first);}
     updateAudio();renderSeries();
   });
-  $('harmonicsProfile').addEventListener('change',e=>{
-    const profile=seriesProfiles[e.target.value];if(!profile&&e.target.value!=='custom')return;
-    seriesProfile=e.target.value;
-    if(profile){for(let n=1;n<=16;n++)seriesLevels[n-1]=profile.level(n);seriesMode='sum';selectedHarmonics.clear();seriesLevels.forEach((level,index)=>{if(level>0)selectedHarmonics.add(index+1);});}
-    updateAudio();renderSeries();
-  });
-  $('harmonicsTuning').addEventListener('change',e=>{if(!Object.hasOwn(M.systems,e.target.value)||e.target.value==='equal')return;seriesComparison=e.target.value;seriesTuning=seriesComparison;updateAudio();renderSeries();});
-  $('harmonicsChosen').addEventListener('click',()=>{seriesTuning=seriesComparison;updateAudio();renderSeries();});
-  for(const [id,tuning] of [['harmonicsNatural','natural'],['harmonicsTempered','equal']])$(id).addEventListener('click',()=>{seriesTuning=tuning;updateAudio();renderSeries();});
+  $('harmonicsProfile').addEventListener('change',e=>applySeriesProfile(e.target.value));
+  $('harmonicsTuning').addEventListener('change',e=>{if(!Object.hasOwn(M.systems,e.target.value)||e.target.value==='equal')return;useReconstruction();seriesComparison=e.target.value;seriesTuning=seriesComparison;updateAudio();renderSeries();});
+  $('harmonicsChosen').addEventListener('click',()=>{useReconstruction();seriesTuning=seriesComparison;updateAudio();renderSeries();});
+  for(const [id,tuning] of [['harmonicsNatural','natural'],['harmonicsTempered','equal']])$(id).addEventListener('click',()=>{useReconstruction();seriesTuning=tuning;updateAudio();renderSeries();});
   for(const [id,numbers] of [['harmonicsFirst',[1]],['harmonicsEight',[1,2,3,4,5,6,7,8]],['harmonicsOdd',[1,3,5,7,9,11,13,15]],['harmonicsAll',Array.from({length:16},(_,i)=>i+1)]])$(id).addEventListener('click',()=>{
     selectedHarmonics.clear();numbers.forEach(n=>{selectedHarmonics.add(n);if(seriesLevels[n-1]===0)seriesLevels[n-1]=1/n;});seriesProfile='custom';seriesMode=numbers.length===1?'solo':'sum';void startSeries();
   });
@@ -778,6 +834,7 @@
   for(const [id,tab] of Object.entries(sectionIds)){
     $(tab).addEventListener('click',()=>selectSection(id,{navigate:true,focus:true}));
     $(tab).addEventListener('keydown',e=>{
+      if(e.ctrlKey||e.metaKey||e.altKey)return;
       const ids=Object.keys(sectionIds),index=ids.indexOf(id),target={ArrowRight:(index+1)%3,ArrowLeft:(index+2)%3,Home:0,End:2}[e.key];
       if(target===undefined)return;e.preventDefault();selectSection(ids[target],{navigate:true,focus:true});
     });
