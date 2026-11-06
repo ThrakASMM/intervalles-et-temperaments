@@ -403,6 +403,18 @@
   }
 
   $('tuningSystem').addEventListener('change',e=>{clearPiano(true);stopCompare();state.system=e.target.value;state.pianoSystem=state.system;rangeAnchor=null;state.cents=interval().equal;state.thirdCents=thirdInterval().equal;render();updateAudio();stopCompare();save();});
+  function revealPiano(){
+    if(state.mode!=='free'){
+      clearPiano(true);stopCompare();state.mode='free';selectNearestReference();render();updateAudio();save();
+    }
+    requestAnimationFrame(()=>{$('piano').scrollIntoView({block:'start',behavior:'auto'});$('pianoTitle').focus({preventScroll:true});});
+  }
+  $('openPiano').addEventListener('click',e=>{
+    e.preventDefault();
+    if(window.location.hash!=='#piano')window.location.hash='piano';
+    revealPiano();
+  });
+  window.addEventListener('hashchange',()=>{if(window.location.hash==='#piano')revealPiano();});
   for(const [id,mode] of [['intervalMode','interval'],['freeMode','free']])$(id).addEventListener('click',()=>{clearPiano(true);stopCompare();state.mode=mode;state.refOctave=0;if(mode==='interval')state.cents=interval().equal;else selectNearestReference();render();updateAudio();save();});
   $('freeOctaves').addEventListener('change',e=>{clearPiano();state.octaveSpan=Number(e.target.value);state.pianoOctave=Math.min(state.pianoOctave,state.octaveSpan-1);state.cents=Math.min(state.cents,maxCents());selectNearestReference();render();updateAudio();save();});
   $('freeSlider').addEventListener('input',e=>setCents(Number(e.target.value)));
@@ -544,4 +556,5 @@
     pen.font='9px Arial';pen.fillStyle='#748097';pen.textAlign='left';pen.fillText('0 ms',left,height-2);pen.textAlign='right';pen.fillText(format(v.duration*1000)+' ms',right,height-2);
   }
   render();resize();requestAnimationFrame(draw);
+  if(window.location.hash==='#piano')revealPiano();
 })();

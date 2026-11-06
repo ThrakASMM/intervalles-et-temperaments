@@ -4,6 +4,8 @@ Application pédagogique d’écoute et de visualisation des intervalles, des ac
 
 ## Utilisation
 
+Accès direct au piano : https://thrakasmm.github.io/intervalles-et-temperaments/#piano. Le bouton **Ouvrir le piano**, en haut de page, affiche automatiquement le clavier.
+
 Cliquer sur **Écouter** en haut. Choisir le bourdon et l’intervalle, ou ouvrir **Libre · frise** pour déplacer la deuxième note sur une à trois octaves.
 
 - Repères justes, égaux, pythagoriciens et mésotoniques.

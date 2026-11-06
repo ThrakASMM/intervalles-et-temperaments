@@ -6,8 +6,8 @@
   <meta name="description" content="Un atelier d’écoute pour explorer les intervalles purs et tempérés, sur un bourdon de votre choix.">
   <title>Intervalles et accordages/Tempéraments — ASMM</title>
   <link rel="icon" href="asmm-logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css">
-  <script src="music.js" defer></script><script src="app.js" defer></script>
+  <link rel="stylesheet" href="style.css?v=piano-direct-2">
+  <script src="music.js?v=piano-direct-2" defer></script><script src="app.js?v=piano-direct-2" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -17,6 +17,7 @@
     </header>
 
     <main>
+      <nav class="quick-access" aria-label="Accès direct"><a id="openPiano" href="#piano" class="piano-shortcut"><span aria-hidden="true">♬</span> Ouvrir le piano <span aria-hidden="true">↓</span></a><span>Notes et accords · avec ou sans bourdon</span></nav>
       <div class="transport"><div class="transport-main"><button id="play" class="play-button" aria-pressed="false"><span id="playIcon" aria-hidden="true">▶</span><span id="playLabel">Écouter</span></button><div class="play-status"><span id="statusDot"></span><span id="statusText" role="status">Prêt à écouter</span></div></div><div class="master-volume"><label for="masterVolume">Volume général</label><input type="range" id="masterVolume" min="0" max="100" value="55"><output id="masterVolumeText" for="masterVolume">55 %</output></div></div>
       <p id="audioError" role="alert" hidden></p>
       <section class="system-bar" aria-label="Accordage de référence"><label for="tuningSystem">Accordage / tempérament<select id="tuningSystem"><option value="equal">Tempérament égal · 12 notes</option><option value="pythagorean">Accord pythagoricien</option><option value="meantone">Mésotonique · ¼ de comma</option></select></label><div><p id="systemDescription"></p><small>Les intervalles sont calculés depuis le bourdon. Pour les systèmes historiques, les notes enharmoniques ne sont pas interchangeables : le triton choisi ici est une quarte augmentée. Le clavier suit ces repères relatifs au bourdon ; il ne simule pas toutes les enharmonies d’un instrument historique ni sa quinte du loup.</small></div></section>
@@ -41,7 +42,7 @@
         </aside>
 
         <section class="explorer" aria-label="Exploration de l’intervalle">
-          <div class="explorer-modes" role="group" aria-label="Mode d’exploration"><button id="intervalMode" aria-pressed="true">Intervalle</button><button id="freeMode" aria-pressed="false">Libre · frise</button></div><div class="explorer-top"><span class="eyebrow">INTERVALLE</span><span id="tuningBadge" class="tuning-badge">Tempéré égal</span></div>
+          <div class="explorer-modes" role="group" aria-label="Mode d’exploration"><button id="intervalMode" aria-pressed="true">Intervalle</button><button id="freeMode" aria-pressed="false">Libre · frise &amp; piano</button></div><div class="explorer-top"><span class="eyebrow">INTERVALLE</span><span id="tuningBadge" class="tuning-badge">Tempéré égal</span></div>
           <div class="pitch-display"><h2 id="intervalTitle">Tierce majeure</h2><p id="resultFormula" class="result-formula">4 × 100 =</p><div class="cents-display"><span id="centsValue">400,00</span><span class="unit">cents</span></div><p class="ratio-inline">Rapport f₂ / f₁ ≈ <strong id="liveRatio">1,259921</strong></p><p id="deviation">+13,69 cents par rapport au repère pur</p></div>
           <div class="scope-wrap"><div class="cycles-heading"><span id="waveHeading">SINUSOÏDES · MÊME AXE TEMPOREL</span><span id="cycleStatus">Cycles décalés</span></div><div class="wave-toolbar"><div class="zoom-switch" role="group" aria-label="Ondes à visualiser"><button id="waveCyclesMode" aria-pressed="true">Points mobiles</button><button id="waveBeatsMode" aria-pressed="false">Battements</button></div><div class="wave-zoom"><button id="waveWiden" aria-label="Élargir les sinusoïdes" title="Élargir les sinusoïdes">−</button><label class="sr-only" for="waveCycles">Résolution du graphique</label><select id="waveCycles"><option value="2">2 cycles</option><option value="4">4 cycles</option><option value="8" selected>8 cycles</option><option value="16">16 cycles</option><option value="32">32 cycles</option></select><button id="waveTighten" aria-label="Resserrer les sinusoïdes" title="Resserrer les sinusoïdes">+</button></div></div><div id="cycleLegend" class="cycle-legend"></div><canvas id="scope" role="img" aria-label="Cycles des sinusoïdes sur le même axe temporel"></canvas><p id="cycleCaption" class="cycle-caption"></p><section id="beatScience" class="beat-science" aria-label="Voir le rythme des battements">
   <div class="beat-science-title"><strong>Voir le battement</strong><span>PHASE → AMPLITUDE → LUMIÈRE</span></div>
@@ -90,8 +91,8 @@
             <p class="free-help">Cliquez sur une note ou déplacez le curseur. Faites défiler la frise horizontalement.</p>
             <div class="free-scroll"><div id="freeTimeline" class="free-timeline"><div id="freeRows"></div><div class="free-slider-wrap"><input id="freeSlider" type="range" min="0" max="1200" step="0.01" value="400" aria-label="Position libre dans les octaves"><div id="freeTicks" class="free-ticks"></div></div></div></div>
             <p id="freeSelection" class="free-selection"></p>
-            <section class="piano-panel" aria-labelledby="pianoTitle">
-              <div class="piano-heading"><div><h2 id="pianoTitle">Piano</h2><p>Jouez des notes ou des accords, avec ou sans bourdon.</p></div><button id="pianoRelease" class="piano-release">Tout relâcher</button></div>
+            <section id="piano" class="piano-panel" aria-labelledby="pianoTitle">
+              <div class="piano-heading"><div><h2 id="pianoTitle" tabindex="-1">Piano</h2><p>Jouez des notes ou des accords, avec ou sans bourdon.</p></div><button id="pianoRelease" class="piano-release">Tout relâcher</button></div>
               <div class="piano-controls">
                 <label>Accordage du piano<select id="pianoSystem"><option value="just">Juste</option><option value="equal">Tempérament égal</option><option value="pythagorean">Pythagoricien</option><option value="meantone">Mésotonique ¼ comma</option></select></label>
                 <label>Timbre<select id="pianoTimbre"><option value="organ">Orgue</option><option value="sine">Sinusoïde</option><option value="flute">Flûte</option><option value="strings">Cordes</option></select></label>

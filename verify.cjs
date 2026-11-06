@@ -26,7 +26,7 @@ class Context{
   addEventListener(){}async resume(){this.state='running'}async suspend(){this.state='suspended'}
 }
 const documentEvents={},windowEvents={};
-const box={console,Float32Array,AudioContext:Context,devicePixelRatio:1,
+const box={location:{hash:''},console,Float32Array,AudioContext:Context,devicePixelRatio:1,
   document:{getElementById:id=>{assert(els.has(id),'Missing DOM id: '+id);return els.get(id)},createElement:element,body:element(),activeElement:null,addEventListener(type,fn){documentEvents[type]=fn}},
   localStorage:{getItem:()=>JSON.stringify({thirdAdded:true}),setItem(){}},
   ResizeObserver:class{observe(){}},matchMedia:()=>({matches:false}),requestAnimationFrame(fn){frame=fn},setInterval:()=>1,clearInterval(){},setTimeout,addEventListener(type,fn){windowEvents[type]=fn}};
