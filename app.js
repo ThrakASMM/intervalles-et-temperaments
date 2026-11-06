@@ -21,7 +21,8 @@
   // An optional chord is always opt-in on each visit; retain only its settings.
   state.thirdAdded=false;
   state.pianoHold=false;
-  if(!['synth','sampled'].includes(state.pianoSound))state.pianoSound='synth';
+  // Always open with a sustained tone; recorded piano is an explicit session option.
+  state.pianoSound='synth';
   if(!['just','equal','pythagorean','meantone'].includes(state.pianoSystem))state.pianoSystem='just';
   if(!['azerty','qwerty'].includes(state.pianoLayout))state.pianoLayout='azerty';
   if(!Object.hasOwn(M.systems,state.system))state.system='equal';

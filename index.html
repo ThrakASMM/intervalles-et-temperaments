@@ -5,10 +5,10 @@
   <meta name="theme-color" content="#1c1c1e">
   <meta name="description" content="Un atelier d’écoute pour explorer les intervalles purs et tempérés, sur un bourdon de votre choix.">
   <title>Intervalles et accordages/Tempéraments — ASMM</title>
-  <link rel="icon" href="asmm-icon.svg?v=piano-midi-2" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=piano-midi-2">
-  <link rel="stylesheet" href="style.css?v=piano-midi-2">
-  <script src="music.js?v=piano-midi-2" defer></script><script src="app.js?v=piano-midi-2" defer></script>
+  <link rel="icon" href="asmm-icon.svg?v=piano-midi-3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=piano-midi-3">
+  <link rel="stylesheet" href="style.css?v=piano-midi-3">
+  <script src="music.js?v=piano-midi-3" defer></script><script src="app.js?v=piano-midi-3" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -96,7 +96,7 @@
               <div class="piano-heading"><div><h2 id="pianoTitle" tabindex="-1">Piano</h2><p>Jouez des notes ou des accords, avec ou sans bourdon.</p></div><div class="piano-actions"><button id="pianoExpand" class="piano-release" aria-pressed="false">Agrandir le piano</button><button id="pianoRelease" class="piano-release">Tout relâcher</button></div></div>
               <div class="piano-controls">
                 <label>Accordage du piano<select id="pianoSystem"><option value="just">Juste</option><option value="equal">Tempérament égal</option><option value="pythagorean">Pythagoricien</option><option value="meantone">Mésotonique ¼ comma</option></select></label>
-                <label>Timbre<select id="pianoTimbre"><option value="sampled">Piano acoustique · enregistré</option><option value="organ">Orgue</option><option value="sine">Sinusoïde</option><option value="flute">Flûte</option><option value="strings">Cordes</option></select></label>
+                <label>Timbre<select id="pianoTimbre"><option value="organ">Orgue · son continu</option><option value="sine">Sinusoïde · son continu</option><option value="flute">Flûte · son continu</option><option value="strings">Cordes · son continu</option><option value="sampled">Piano acoustique · enregistré</option></select></label>
                 <label>Touches ordinateur<select id="pianoLayout"><option value="azerty">AZERTY</option><option value="qwerty">QWERTY</option></select></label>
                 <div class="piano-octave-control"><label for="pianoOctave">Octave du piano</label><select id="pianoOctave"></select><div><button id="pianoOctaveDown" aria-label="Descendre le piano d’une octave">−1 octave</button><button id="pianoOctaveUp" aria-label="Monter le piano d’une octave">+1 octave</button></div></div>
               </div>

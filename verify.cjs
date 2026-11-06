@@ -34,7 +34,7 @@ const midiAccess={inputs:new Map([['keyboard-a',midiA],['keyboard-b',midiB]])};
 let midiRequests=0,fetches=0;
 const box={async fetch(url){assert.match(url,/^piano-.*\.mp3$/);fetches++;return {ok:true,async arrayBuffer(){return new ArrayBuffer(16)}};},navigator:{async requestMIDIAccess(options){assert.equal(options.sysex,false);midiRequests++;return midiAccess;}},location:{hash:''},console,Float32Array,AudioContext:Context,devicePixelRatio:1,
   document:{getElementById:id=>{assert(els.has(id),'Missing DOM id: '+id);return els.get(id)},createElement:element,createElementNS:element,body:element(),activeElement:null,addEventListener(type,fn){documentEvents[type]=fn}},
-  localStorage:{getItem:()=>JSON.stringify({thirdAdded:true}),setItem(){}},
+  localStorage:{getItem:()=>JSON.stringify({thirdAdded:true,pianoSound:'sampled'}),setItem(){}},
   ResizeObserver:class{observe(){}},matchMedia:()=>({matches:false}),requestAnimationFrame(fn){frame=fn},setInterval:()=>1,clearInterval(){},setTimeout,addEventListener(type,fn){windowEvents[type]=fn}};
 box.window=box;vm.createContext(box);
 vm.runInContext(fs.readFileSync(path.join(root,'music.js'),'utf8'),box);
@@ -67,6 +67,9 @@ for(const mode of Object.keys(M.systems))for(const i of M.intervals){const t=M.t
 vm.runInContext(fs.readFileSync(path.join(root,'app.js'),'utf8'),box);
 const el=id=>els.get(id);
 (async()=>{
+  await el('freeMode').emit('click');
+  assert.equal(el('pianoTimbre').value,'organ','The piano always opens with a sustained tone, even after recorded piano was saved');
+  await el('intervalMode').emit('click');
   assert(el('thirdPanel').hidden,'Always starts with two notes, even after a saved chord');
   await el('play').emit('click');
   const ctx=audio[0];assert.equal(ctx.osc.length,3);assert.equal(ctx.gains[3].gain.value,0);

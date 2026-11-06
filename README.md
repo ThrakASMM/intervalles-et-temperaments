@@ -29,7 +29,7 @@ Sur la page HTTPS dans un navigateur disposant de Web MIDI (Chrome ou Edge sur o
 
 ### Piano acoustique en option
 
-Choisir **Piano acoustique · enregistré** dans le timbre du piano. Trente échantillons locaux (environ 2 Mo) sont chargés au premier usage. La lecture est transposée selon le diapason et l’accordage choisis. La vélocité MIDI règle l’amplitude (une couche d’échantillons) ; la pédale prolonge la résonance enregistrée, qui décroît naturellement. Les sons de synthèse restent continus et sont mieux adaptés à l’étude de battements idéaux.
+Le piano s’ouvre toujours avec un son de synthèse continu, même après avoir utilisé le son enregistré. Pour ce dernier, choisir explicitement **Piano acoustique · enregistré** dans le timbre du piano. Trente échantillons locaux (environ 2 Mo) sont chargés au premier usage. La lecture est transposée selon le diapason et l’accordage choisis. La vélocité MIDI règle l’amplitude (une couche d’échantillons) ; la pédale prolonge la résonance enregistrée, qui décroît naturellement. Les sons de synthèse restent continus et sont mieux adaptés à l’étude de battements idéaux.
 
 Échantillons **Salamander Grand Piano V3**, © Alexander Holm, licence [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), texte complet dans `PIANO-LICENSE.txt`. Sources : [instrument original](https://github.com/sfzinstruments/SalamanderGrandPiano) ; [versions MP3 distribuées par Tone.js](https://github.com/Tonejs/audio/tree/master/salamander). Fichiers MP3 inchangés, renommés avec le préfixe `piano-` ; transposition à la lecture. L’auteur n’endosse pas cette application.
 
