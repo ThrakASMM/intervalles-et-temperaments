@@ -15,10 +15,14 @@ function element(){
 }
 for(const match of fs.readFileSync(path.join(root,'index.html'),'utf8').matchAll(/id="([^"]+)"/g))els.set(match[1],element());
 const audio=[];
+const audioSessionMode=process.argv[2]||'supported';
+assert(['supported','unsupported','rejected'].includes(audioSessionMode));
+let sessionType='auto',sessionRequests=0;
+const audioSession={get type(){return sessionType},set type(value){sessionRequests++;if(audioSessionMode==='rejected')throw new Error('Audio session unavailable');sessionType=value;}};
 class Param{constructor(){this.value=0}cancelScheduledValues(){}setTargetAtTime(v){this.value=v}}
 class Node{constructor(type){this.type=type;this.frequency=new Param();this.playbackRate=new Param();this.gain=new Param()}connect(){}start(){}stop(){this.stopped=true}disconnect(){}setPeriodicWave(w){this.wave=w}}
 class Context{
-  constructor(){this.state='running';this.currentTime=0;this.sampleRate=48000;this.destination={};this.osc=[];this.gains=[];this.buffers=[];audio.push(this)}
+  constructor(){if(audioSessionMode==='supported')assert.equal(sessionType,'playback','Choose music playback before creating the audio context');this.state='running';this.currentTime=0;this.sampleRate=48000;this.destination={};this.osc=[];this.gains=[];this.buffers=[];audio.push(this)}
   createOscillator(){const n=new Node('osc');this.osc.push(n);return n}
   createBufferSource(){const n=new Node('buffer');this.buffers.push(n);return n}
   async decodeAudioData(){return {duration:12}}
@@ -36,6 +40,7 @@ const box={async fetch(url){assert.match(url,/^piano-.*\.mp3$/);fetches++;return
   document:{getElementById:id=>{assert(els.has(id),'Missing DOM id: '+id);return els.get(id)},createElement:element,createElementNS:element,body:element(),activeElement:null,addEventListener(type,fn){documentEvents[type]=fn}},
   localStorage:{getItem:()=>JSON.stringify({thirdAdded:true,pianoSound:'sampled'}),setItem(){}},
   ResizeObserver:class{observe(){}},matchMedia:()=>({matches:false}),requestAnimationFrame(fn){frame=fn},setInterval:()=>1,clearInterval(){},setTimeout,addEventListener(type,fn){windowEvents[type]=fn}};
+if(audioSessionMode!=='unsupported')box.navigator.audioSession=audioSession;
 box.window=box;vm.createContext(box);
 vm.runInContext(fs.readFileSync(path.join(root,'music.js'),'utf8'),box);
 const M=box.IntervalleMusic,third=M.intervals.find(i=>i.id==='M3'),fifth=M.intervals.find(i=>i.id==='P5');
@@ -65,6 +70,7 @@ const extended=M.extendInterval(M.tunedInterval(third,'equal'),2,'equal');
 near(extended.pure,2786.313713864835);near(extended.n/extended.d,5);
 for(const mode of Object.keys(M.systems))for(const i of M.intervals){const t=M.tunedInterval(i,mode);assert(t.equal>=-1e-10&&t.equal<=1200);near(M.transpose(200,i.pure),200*i.n/i.d)}
 vm.runInContext(fs.readFileSync(path.join(root,'app.js'),'utf8'),box);
+assert.equal(sessionRequests,0,'Opening the page does not take over the device audio session');
 const el=id=>els.get(id);
 (async()=>{
   await el('freeMode').emit('click');
@@ -72,6 +78,8 @@ const el=id=>els.get(id);
   await el('intervalMode').emit('click');
   assert(el('thirdPanel').hidden,'Always starts with two notes, even after a saved chord');
   await el('play').emit('click');
+  assert.equal(el('playLabel').textContent,'Pause','Playback works with a supported, absent or rejected Audio Session API');
+  assert.equal(sessionRequests,audioSessionMode==='unsupported'?0:1);
   const ctx=audio[0];assert.equal(ctx.osc.length,3);assert.equal(ctx.gains[3].gain.value,0);
   await el('addThird').emit('click');assert(!el('thirdPanel').hidden);assert(ctx.gains[3].gain.value>0);
   await el('thirdPure').emit('click');near(ctx.osc[2].frequency.value,ctx.osc[0].frequency.value*1.5);
@@ -266,7 +274,7 @@ const el=id=>els.get(id);
   assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-fraction').textContent,'5/1');
   assert.equal(scoreNote(5).children.find(c=>c.attributes.class==='score-reduced').textContent,'5/4');
   await el('harmonicsPlay').emit('click');
-  console.log('PASS — octave indépendante, sustain entre octaves/focus, MIDI (notes, vélocité, pédales, canaux, connexion/refus), piano enregistré et portée interactive.');
+  console.log('PASS — audio session '+audioSessionMode+' ; octave indépendante, sustain entre octaves/focus, MIDI (notes, vélocité, pédales, canaux, connexion/refus), piano enregistré et portée interactive.');
 
   console.log('PASS — série H1 à H16 : fréquences, cents, solo, addition, amplitudes, impaires, fondamentale, arrêt et retour aux intervalles.');
   console.log('PASS — piano polyphonique, sans/avec bourdon, sustain, accordages, relâchement, clavier et touch.');

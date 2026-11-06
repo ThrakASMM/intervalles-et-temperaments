@@ -8,6 +8,8 @@ Accès direct au piano : https://thrakasmm.github.io/intervalles-et-temperaments
 
 Cliquer sur **Écouter** en haut. Choisir le bourdon et l’intervalle, ou ouvrir **Libre · frise** pour déplacer la deuxième note sur une à trois octaves.
 
+Sur iPhone/iPad avec iOS/iPadOS 17 ou ultérieur et un navigateur compatible, l’application demande une session musicale `playback` au premier geste de lecture, avant de créer le contexte audio : la sonnerie peut rester coupée. Garder le volume multimédia audible. Les navigateurs sans cette API ou qui refusent le réglage conservent leur comportement habituel ; sur les anciens iPhone, il peut être nécessaire de désactiver le mode silencieux. Ce réglage concerne le bourdon, le piano et les harmoniques. Il ne garantit pas la lecture écran verrouillé. [Explication WebKit](https://bugs.webkit.org/show_bug.cgi?id=237322#c6).
+
 - Repères justes, égaux, pythagoriciens et mésotoniques.
 - Piano polyphonique sous la frise : souris, multitouch avec glissando, clavier AZERTY ou QWERTY, de une à trois octaves. Sur smartphone : touches agrandies, curseur de déplacement horizontal et mode « Agrandir le piano », utilisable en paysage.
 - Piano avec ou sans bourdon, maintien des notes, accordages juste, égal, pythagoricien et mésotonique.
@@ -44,6 +46,8 @@ Pour l’utiliser localement, ouvrir `index.html` ou servir ce dossier avec un s
 ## Vérification
 
 `node verify.cjs` vérifie les calculs, le routage audio, la polyphonie, les relâchements, le maintien et les changements d’accordage, les octaves indépendantes, le sustain entre octaves, les événements MIDI simulés, les sources audio échantillonnées et la portée interactive.
+
+`node verify.cjs unsupported` et `node verify.cjs rejected` vérifient aussi que la lecture reste fonctionnelle si l’API Audio Session est absente ou refuse le réglage. Le commutateur silencieux doit être vérifié sur un iPhone physique.
 
 ## Identité
 

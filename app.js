@@ -97,6 +97,9 @@
   async function initAudio(){
     const AudioContext=window.AudioContext||window.webkitAudioContext;
     if(!AudioContext)throw new Error('La synthèse audio n’est pas disponible dans ce navigateur. Essayez Safari, Chrome ou Firefox.');
+    // iOS 17+: music playback remains audible with the Ring/Silent switch on.
+    // Configure only when the user starts audio; unsupported browsers keep their default.
+    try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch{}
     if(!ctx || ctx.state==='closed'){
       ctx=new AudioContext();
       seriesNodes=null;pianoVoices.clear();
